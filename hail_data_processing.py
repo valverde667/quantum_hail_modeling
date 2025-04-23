@@ -97,6 +97,7 @@ size_freq = df["MAGNITUDE"].value_counts().sort_index()
 plt.scatter(size_freq.index, size_freq.values)
 plt.xlabel("Hail Size (cm)")
 plt.ylabel("Frequency")
+plt.savefig("hail_size_histogram.pdf", dpi=500)
 plt.show()
 
 # Aggregate the data by week over all years from Jan to Dec (calendar weeks)
@@ -104,10 +105,11 @@ df["MONTH"] = df["BEGIN_DATE"].dt.month
 df["WEEK_IN_MONTH"] = df["BEGIN_DATE"].dt.day.apply(lambda x: (x - 1) // 7 + 1)
 df["MONTH_WEEK_INDEX"] = (df["MONTH"] - 1) * 4 + df["WEEK_IN_MONTH"]
 
-# Group the data by week and count the number of events
+# Create a series with index of week numbers (1-48) and values as the count of 
+# hail events in each week
 weekly_counts = df.groupby("MONTH_WEEK_INDEX").size()
 
-# Ensure all 48 bins are present
+# Initialize a series with all weeks (1-48) and set the counts to 0 then fill
 all_bins = pd.Series(0, index=np.arange(1, 49))
 weekly_counts = all_bins.add(weekly_counts, fill_value=0)
 
@@ -139,4 +141,5 @@ month_ticks = [i * 4 + 1 for i in range(12)]
 plt.xticks(month_ticks, month_labels)
 
 plt.tight_layout()
+plt.savefig("hail_events_per_week.pdf", dpi=500)
 plt.show()
