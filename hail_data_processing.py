@@ -12,6 +12,27 @@ import os
 import datetime
 import glob
 
+# Plot style settings
+
+# Set the style of seaborn
+sns.set_style("whitegrid")
+
+# Set the color palette
+sns.set_palette("pastel")
+
+# Set the font size
+plt.rcParams["font.size"] = 14
+
+# Set font to Helvetica Neue
+plt.rcParams["font.family"] = "Helvetica Neue"
+
+# Set font weight to light
+plt.rcParams["font.weight"] = "light"
+
+# ------------------------------------------------------------------------------
+#    Ingest Data and Cleaning
+# Extract data from multiple CSV files and combine them into a single dataframe.
+# ------------------------------------------------------------------------------
 # Set the path to the directory where the CSV files are located
 data_path = os.path.join(os.getcwd(), "data")
 
@@ -51,5 +72,28 @@ df = pd.concat(dfs, ignore_index=True)
 # Remove any rows that do not have a magntitude, Begin or End date
 df = df.dropna(subset=["MAGNITUDE", "BEGIN_DATE", "END_DATE"])
 
+# Convert the MAGNITUDE column to numeric values
+df["MAGNITUDE"] = pd.to_numeric(df["MAGNITUDE"], errors="coerce")
+
+# Remove any rows that have a magnitude of 0
+df = df[df["MAGNITUDE"] != 0]
+
+
 # Save the dataframe to a CSV file
 df.to_csv("concat_hail_data.csv", index=False)
+
+
+# ------------------------------------------------------------------------------
+#    Visualize Data
+# Visualize various columns in dataframe.
+# ------------------------------------------------------------------------------
+# Set the figure size
+plt.figure(figsize=(10, 6))
+
+# Plot a histogram of the magnitude column. Since magnitudes come in fixed values
+# bin based on the unique values.
+size_freq = df["MAGNITUDE"].value_counts().sort_index()
+plt.scatter(size_freq.index, size_freq.values)
+plt.xlabel("Hail Size (cm)")
+plt.ylabel("Frequency")
+plt.show()
