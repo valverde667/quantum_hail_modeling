@@ -79,6 +79,10 @@ df["MAGNITUDE"] = pd.to_numeric(df["MAGNITUDE"], errors="coerce")
 # Remove any rows that have a magnitude of 0
 df = df[df["MAGNITUDE"] != 0]
 
+# Aggregate the data by week over all years from Jan to Dec (calendar weeks)
+df["MONTH"] = df["BEGIN_DATE"].dt.month
+df["WEEK_IN_MONTH"] = df["BEGIN_DATE"].dt.day.apply(lambda x: (x - 1) // 7 + 1)
+df["MONTH_WEEK_INDEX"] = (df["MONTH"] - 1) * 4 + df["WEEK_IN_MONTH"]
 
 # Save the dataframe to a CSV file
 df.to_csv("concat_hail_data.csv", index=False)
@@ -88,7 +92,7 @@ df.to_csv("concat_hail_data.csv", index=False)
 #    Visualize Data
 # Visualize various columns in dataframe.
 # ------------------------------------------------------------------------------
-# Set the figure size
+# -- Plot a scatter plot of the magnitude column
 plt.figure(figsize=(10, 6))
 
 # Plot a histogram of the magnitude column. Since magnitudes come in fixed values
@@ -101,11 +105,7 @@ plt.tight_layout()
 plt.savefig("hail_size_histogram.pdf", dpi=500)
 plt.show()
 
-# Aggregate the data by week over all years from Jan to Dec (calendar weeks)
-df["MONTH"] = df["BEGIN_DATE"].dt.month
-df["WEEK_IN_MONTH"] = df["BEGIN_DATE"].dt.day.apply(lambda x: (x - 1) // 7 + 1)
-df["MONTH_WEEK_INDEX"] = (df["MONTH"] - 1) * 4 + df["WEEK_IN_MONTH"]
-
+# -- Plot histogram of hail events per week in a year.
 # Create a series with index of week numbers (1-48) and values as the count of 
 # hail events in each week
 weekly_counts = df.groupby("MONTH_WEEK_INDEX").size()
@@ -145,6 +145,7 @@ plt.tight_layout()
 plt.savefig("hail_events_per_week.pdf", dpi=500)
 plt.show()
 
+# -- Plot a heatmap of hail sizes by week
 # Round sizes if needed to reduce clutter
 df['size_rounded'] = df['MAGNITUDE'].round(2)
 
