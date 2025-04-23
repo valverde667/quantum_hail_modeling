@@ -94,9 +94,10 @@ plt.figure(figsize=(10, 6))
 # Plot a histogram of the magnitude column. Since magnitudes come in fixed values
 # bin based on the unique values.
 size_freq = df["MAGNITUDE"].value_counts().sort_index()
-plt.scatter(size_freq.index, size_freq.values)
-plt.xlabel("Hail Size (cm)")
+plt.scatter(size_freq.index, size_freq.values, s=70)
+plt.xlabel("Hail Size (in.)")
 plt.ylabel("Frequency")
+plt.tight_layout()
 plt.savefig("hail_size_histogram.pdf", dpi=500)
 plt.show()
 
@@ -138,7 +139,7 @@ month_labels = [
     "Dec",
 ]
 month_ticks = [i * 4 + 1 for i in range(12)]
-plt.xticks(month_ticks, month_labels)
+plt.xticks(month_ticks, month_labels, rotation=45)
 
 plt.tight_layout()
 plt.savefig("hail_events_per_week.pdf", dpi=500)
