@@ -144,3 +144,23 @@ plt.xticks(month_ticks, month_labels, rotation=45)
 plt.tight_layout()
 plt.savefig("hail_events_per_week.pdf", dpi=500)
 plt.show()
+
+# Round sizes if needed to reduce clutter
+df['size_rounded'] = df['MAGNITUDE'].round(2)
+
+# Create a pivot table or 2D histogram
+heatmap_data = df.pivot_table(
+    index='MONTH_WEEK_INDEX',
+    columns='size_rounded',
+    values='BEGIN_DATE',  # or any column just to count
+    aggfunc='count',
+    fill_value=0
+)
+
+plt.figure(figsize=(14, 6))
+sns.heatmap(heatmap_data, cmap='Blues', linewidths=0.5, cbar_kws={'label': 'Event Count'})
+plt.xlabel("Hail Size (in)")
+plt.ylabel("Week Index (1–48)")
+plt.title("Frequency of Hail Sizes by Week")
+plt.tight_layout()
+plt.show()
