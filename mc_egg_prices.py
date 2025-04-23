@@ -75,7 +75,7 @@ if use_analytic:
     ax.set_ylabel("Price ($)")
     ax.legend()
     plt.tight_layout()
-    plt.savefig('daily_price_mean_std.png', dpi=500)
+    plt.savefig('daily_price_mean_std.pdf', dpi=500)
     plt.show()
 
 
@@ -88,7 +88,7 @@ if use_analytic:
     ax2.set_ylabel("Frequency")
     ax2.legend()
     plt.tight_layout()
-    plt.savefig('total_cost_histogram.png', dpi=500)
+    plt.savefig('total_cost_histogram.pdf', dpi=500)
     plt.show()
 
 # ------------------------------------------------------------------------------
@@ -120,7 +120,7 @@ if use_historical:
     plt.ylabel("Price per Dozen Eggs ($)", fontsize=14)
     plt.legend()
     plt.tight_layout()
-    plt.savefig('adjusted_price.png', dpi=500)
+    plt.savefig('adjusted_price.pdf', dpi=500)
     plt.show()
 
     # Create a probability density function (PDF) from the historical data
@@ -144,7 +144,7 @@ if use_historical:
     plt.ylabel("Probability Density", fontsize=14)
     plt.legend()
     plt.tight_layout()
-    plt.savefig('egg_price_distribution.png', dpi=500)
+    plt.savefig('egg_price_distribution.pdf', dpi=500)
     plt.show()
 
     # Use KDE to sample from distribution for 10,000 trials of egg prices.
@@ -163,7 +163,7 @@ if use_historical:
     plt.ylabel("Frequency", fontsize=14)
     plt.legend()
     plt.tight_layout()
-    plt.savefig('egg_price_distribution_sampled.png', dpi=500)
+    plt.savefig('egg_price_distribution_sampled.pdf', dpi=500)
     plt.show()
 
     print(f"Mean sampled price: ${np.mean(sampled_prices):.2f}")
