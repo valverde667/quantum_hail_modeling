@@ -29,6 +29,7 @@ plt.rcParams["font.family"] = "Helvetica Neue"
 # Set font weight to light
 plt.rcParams["font.weight"] = "light"
 
+
 # ------------------------------------------------------------------------------
 #    Ingest Data and Cleaning
 # Extract data from multiple CSV files and combine them into a single dataframe.
@@ -96,4 +97,46 @@ size_freq = df["MAGNITUDE"].value_counts().sort_index()
 plt.scatter(size_freq.index, size_freq.values)
 plt.xlabel("Hail Size (cm)")
 plt.ylabel("Frequency")
+plt.show()
+
+# Aggregate the data by week over all years from Jan to Dec (calendar weeks)
+df["MONTH"] = df["BEGIN_DATE"].dt.month
+df["WEEK_IN_MONTH"] = df["BEGIN_DATE"].dt.day.apply(lambda x: (x - 1) // 7 + 1)
+df["MONTH_WEEK_INDEX"] = (df["MONTH"] - 1) * 4 + df["WEEK_IN_MONTH"]
+
+# Group the data by week and count the number of events
+weekly_counts = df.groupby("MONTH_WEEK_INDEX").size()
+
+# Ensure all 48 bins are present
+all_bins = pd.Series(0, index=np.arange(1, 49))
+weekly_counts = all_bins.add(weekly_counts, fill_value=0)
+
+# Create histogram-style bar plot
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.bar(weekly_counts.index, weekly_counts.values, width=0.8, edgecolor="black")
+ax.set_xlabel("Week Number")
+ax.set_ylabel("Number of Hail Events")
+
+# Major ticks (every week)
+ax.set_xticks(np.arange(1, 49))  # 1 through 48
+
+# Minor ticks with month labels every 4 weeks
+month_labels = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+]
+month_ticks = [i * 4 + 1 for i in range(12)]
+plt.xticks(month_ticks, month_labels)
+
+plt.tight_layout()
 plt.show()
