@@ -9,6 +9,10 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import random 
 
+from library import set_plot_style
+# Set plot style
+set_plot_style()
+
 def pi_estimate(N, store_coords=False):
     # N is the number of trials, store_coords is a boolean to store x and y coordinates
     # of the points that lie within the circle.
