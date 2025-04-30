@@ -12,3 +12,8 @@
 
 # Ignore all csv files 
 *.csv
+
+# Ignore certain mac files
+*.numbers
+*.key
+*.pptx
