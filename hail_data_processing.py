@@ -84,6 +84,9 @@ df["MONTH"] = df["BEGIN_DATE"].dt.month
 df["WEEK_IN_MONTH"] = df["BEGIN_DATE"].dt.day.apply(lambda x: (x - 1) // 7 + 1)
 df["MONTH_WEEK_INDEX"] = (df["MONTH"] - 1) * 4 + df["WEEK_IN_MONTH"]
 
+# Create column for the year the hail event occured
+df["year"] = df["BEGIN_DATE"].dt.year
+
 # Save the dataframe to a CSV file
 df.to_csv("concat_hail_data.csv", index=False)
 
@@ -106,7 +109,7 @@ plt.savefig("hail_size_histogram.pdf", dpi=500)
 plt.show()
 
 # -- Plot histogram of hail events per week in a year.
-# Create a series with index of week numbers (1-48) and values as the count of 
+# Create a series with index of week numbers (1-48) and values as the count of
 # hail events in each week
 weekly_counts = df.groupby("MONTH_WEEK_INDEX").size()
 
@@ -147,21 +150,33 @@ plt.show()
 
 # -- Plot a heatmap of hail sizes by week
 # Round sizes if needed to reduce clutter
-df['size_rounded'] = df['MAGNITUDE'].round(2)
+df["size_rounded"] = df["MAGNITUDE"].round(2)
 
 # Create a pivot table or 2D histogram
 heatmap_data = df.pivot_table(
-    index='MONTH_WEEK_INDEX',
-    columns='size_rounded',
-    values='BEGIN_DATE',  # or any column just to count
-    aggfunc='count',
-    fill_value=0
+    index="MONTH_WEEK_INDEX",
+    columns="size_rounded",
+    values="BEGIN_DATE",  # or any column just to count
+    aggfunc="count",
+    fill_value=0,
 )
 
 plt.figure(figsize=(14, 6))
-sns.heatmap(heatmap_data, cmap='Blues', linewidths=0.5, cbar_kws={'label': 'Event Count'})
+sns.heatmap(
+    heatmap_data, cmap="Blues", linewidths=0.5, cbar_kws={"label": "Event Count"}
+)
 plt.xlabel("Hail Size (in)")
 plt.ylabel("Week Index (1–48)")
 plt.title("Frequency of Hail Sizes by Week")
 plt.tight_layout()
+plt.show()
+
+# Visualize the number of hail events per year.
+yearly_counts = df.groupby("year").size()
+fig, ax = plt.subplots()
+ax.bar(yearly_counts.index, yearly_counts.values)
+ax.set_xlabel("Year")
+ax.set_ylabel("Number of Hail Events")
+plt.tight_layout()
+plt.savefig("hail_events_per_year.pdf", dpi=500)
 plt.show()
