@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.stats import nbinom
 import seaborn as sns
 import os
 import datetime
@@ -16,7 +15,7 @@ set_plot_style()
 #    Variables
 # Define any useful variables here.
 # ------------------------------------------------------------------------------
-n_years = 10000  # Number of years to simulate
+n_years = 100000  # Number of years to simulate
 n_weeks = 48  # Number of weeks in a year
 np.random.seed(42)
 start_year = 1980
@@ -102,13 +101,13 @@ damage_lookup = np.vectorize(damage_function)
 # events, the PMF for weekly events and hail size is used to distribute the
 # events per year and hail size.
 # ------------------------------------------------------------------------------
-simulated_damage = []
+losses = []
 for i in range(n_years):
     # Sample number of hail events for the year
     n_events = nbinom.rvs(r, p)
 
     if n_events == 0:
-        simulated_damage.append(0)
+        losses.append(0)
         continue
 
     # Sample the weeks an event occurs and the size of the hail
@@ -119,14 +118,25 @@ for i in range(n_years):
     damage = damage_lookup(sampled_sizes)
 
     # Calculate damage for the year
-    simulated_damage.append(damage.sum())
+    losses.append(damage.sum())
 
-simulated_damage = np.array(simulated_damage)
+losses = np.array(losses)
 
 # ------------------------------------------------------------------------------
 #    Results
 # Calculate various metrics for the simulated data.
 # ------------------------------------------------------------------------------
-loss = simulated_damage.mean()
-var_95 = np.percentile(simulated_damage, 95)
-tvar_95 = simulated_damage[simulated_damage > var_95].mean()
+loss = losses.mean()
+var_95 = np.percentile(losses, 95)
+tvar_95 = losses[losses > var_95].mean()
+
+# Plot cumulative distribution function (CDF) of losses
+sorted_losses = np.sort(losses)
+cdf = np.arange(1, len(sorted_losses) + 1) / len(sorted_losses)
+
+plt.plot(sorted_losses, cdf)
+plt.xlabel("Loss")
+plt.ylabel("Cumulative Probability")
+plt.tight_layout()
+plt.savefig("losses_cdf.pdf", dpi=800, bbox_inches="tight")
+plt.show()
