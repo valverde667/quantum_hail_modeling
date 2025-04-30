@@ -12,22 +12,10 @@ import os
 import datetime
 import glob
 
+from library import set_plot_style
+
 # Plot style settings
-
-# Set the style of seaborn
-sns.set_style("whitegrid")
-
-# Set the color palette
-sns.set_palette("pastel")
-
-# Set the font size
-plt.rcParams["font.size"] = 14
-
-# Set font to Helvetica Neue
-plt.rcParams["font.family"] = "Helvetica Neue"
-
-# Set font weight to light
-plt.rcParams["font.weight"] = "light"
+set_plot_style()
 
 
 # ------------------------------------------------------------------------------
@@ -125,6 +113,7 @@ ax.set_ylabel("Number of Hail Events")
 
 # Major ticks (every week)
 ax.set_xticks(np.arange(1, 49))  # 1 through 48
+ax.minorticks_off()
 
 # Minor ticks with month labels every 4 weeks
 month_labels = [
@@ -174,7 +163,7 @@ plt.show()
 # Visualize the number of hail events per year.
 yearly_counts = df.groupby("year").size()
 fig, ax = plt.subplots()
-ax.bar(yearly_counts.index, yearly_counts.values)
+ax.bar(yearly_counts.index, yearly_counts.values, width=0.8, edgecolor="black")
 ax.set_xlabel("Year")
 ax.set_ylabel("Number of Hail Events")
 plt.tight_layout()
