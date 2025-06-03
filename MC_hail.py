@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from scipy.stats import nbinom
 import os
 import datetime
 import glob
@@ -130,6 +131,12 @@ loss = losses.mean()
 var_95 = np.percentile(losses, 95)
 tvar_95 = losses[losses > var_95].mean()
 
+print(f"Mean Loss: {loss:.2f}")
+print(f"95th Percentile Loss: {var_95:.2f}")
+print(f"Tail 95th Percentile Loss: {tvar_95:.2f}")
+print(f"Max Loss: {losses.max():.2f}")
+
+
 # Plot cumulative distribution function (CDF) of losses
 sorted_losses = np.sort(losses)
 cdf = np.arange(1, len(sorted_losses) + 1) / len(sorted_losses)
@@ -139,4 +146,25 @@ plt.xlabel("Loss")
 plt.ylabel("Cumulative Probability")
 plt.tight_layout()
 plt.savefig("losses_cdf.pdf", dpi=800, bbox_inches="tight")
+plt.show()
+
+# Plot histogram of losses
+counts, bin_edges = np.histogram(losses, bins=50, density=True)
+bin_centers = 0.5 * (bin_edges[1:] + bin_edges[:-1])
+plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], edgecolor="black", lw=1)
+plt.xlabel("Loss (arb.)")
+plt.ylabel("Probability Density")
+plt.tight_layout()
+plt.savefig("losses_histogram.pdf", dpi=800, bbox_inches="tight")
+plt.show()
+
+# Slice off the first bin
+counts = counts[1:]
+bin_centers = bin_centers[1:]
+bin_width = bin_edges[1] - bin_edges[0]
+
+# Plot
+plt.bar(bin_centers, counts, width=bin_width, edgecolor="black", lw=1)
+plt.tight_layout()
+plt.savefig("losses_histogram_no_zero.pdf", dpi=800, bbox_inches="tight")
 plt.show()
