@@ -9,6 +9,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from scipy.stats import nbinom
+from scipy.special import rel_entr
+from scipy.optimize import minimize
+from collections import Counter
+
 
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import Aer
@@ -89,6 +93,39 @@ def create_qcbm_circuit(num_qubits, depth=2):
     return qc, params
 
 
+def kl_divergence(p_target, p_model):
+    """Compute KL divergence between two PMFs."""
+    # Smooth with epsilon to avoid log(0)
+    epsilon = 1e-9
+    p_target = np.array(p_target) + epsilon
+    p_model = np.array(p_model) + epsilon
+    p_target /= p_target.sum()
+    p_model /= p_model.sum()
+    return np.sum(rel_entr(p_target, p_model))
+
+
+def get_qcbm_probs(qc, params, param_values, num_labels, shots=1000):
+    bound = qc.assign_parameters(param_values)
+    simulator = Aer.get_backend("qasm_simulator")
+    compiled = transpile(bound, simulator)
+    result = simulator.run(compiled, shots=shots).result()
+    counts = result.get_counts()
+
+    # Convert bitstrings to integers and filter to valid label range
+    freq = np.zeros(num_labels)
+    for bitstring, count in counts.items():
+        label = int(bitstring, 2)
+        if label < num_labels:
+            freq[label] += count
+
+    return freq / shots
+
+
+def qcbm_objective(param_values, qc, params, target_pmf):
+    model_pmf = get_qcbm_probs(qc, params, param_values, num_labels=len(target_pmf))
+    return kl_divergence(target_pmf, model_pmf)
+
+
 # ------------------------------------------------------------------------------
 #    Ingest and Process Data
 # Ingest data from concatenated csv file (see hail_data_processing.py) and
@@ -160,7 +197,26 @@ counts = result.get_counts()
 plot_histogram(counts)
 plt.tight_layout()
 plt.savefig("qcbm_histogram.pdf", dpi=800, bbox_inches="tight")
-plt.show()
+# plt.show()
+
+# Optimize the QCMB parameters to match the target PMF
+init_params = 2 * np.pi * np.random.rand(len(params))
+
+# Optimize
+result = minimize(
+    qcbm_objective,
+    init_params,
+    args=(qc, params, hail_probs),
+    method="COBYLA",
+    options={"maxiter": 100, "disp": True},
+)
+
+trained_params = result.x
+
+final_probs = get_qcbm_probs(qc, params, trained_params, len(hail_probs), shots=shots)
+print("Empirical Hail PMF:", np.round(hail_probs, 3))
+print("Trained QCBM PMF:  ", np.round(final_probs, 3))
+
 # # Vectorize the damage function
 # damage_lookup = np.vectorize(damage_function)
 # stop
