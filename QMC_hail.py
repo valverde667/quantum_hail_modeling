@@ -9,8 +9,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from scipy.stats import nbinom
-from qiskit import QuantumCircuit
+
+from qiskit import QuantumCircuit, transpile
+from qiskit_aer import Aer
+from qiskit.visualization import plot_histogram
 from qiskit.circuit import ParameterVector
+
 import os
 import datetime
 import glob
@@ -133,7 +137,30 @@ labeled_data = df["MAGNITUDE"].map(hail_size_to_label).dropna().astype(int)
 # Calculate number of quibits needed for encoding hail sizes
 num_qubits = int(np.ceil(np.log2(len(hail_sizes))))
 
+# Create quantum circuit and paramter vector for QCBM
+qc, params = create_qcbm_circuit(num_qubits, depth=2)
 
+# Set number of shots (simulations)
+shots = 1000
+
+# Generate random parameter values for now (will optimize later)
+np.random.seed(42)
+param_values = 2 * np.pi * np.random.rand(len(params))  # between 0 and 2π
+
+# Bind parameters to circuit
+bound_circuit = qc.assign_parameters(param_values)
+
+# Simulate
+simulator = Aer.get_backend("qasm_simulator")
+compiled = transpile(bound_circuit, simulator)
+result = simulator.run(compiled, shots=1000).result()
+counts = result.get_counts()
+
+# Show histogram of bitstrings
+plot_histogram(counts)
+plt.tight_layout()
+plt.savefig("qcbm_histogram.pdf", dpi=800, bbox_inches="tight")
+plt.show()
 # # Vectorize the damage function
 # damage_lookup = np.vectorize(damage_function)
 # stop
