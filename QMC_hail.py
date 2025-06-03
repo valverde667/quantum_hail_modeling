@@ -104,7 +104,7 @@ def kl_divergence(p_target, p_model):
     return np.sum(rel_entr(p_target, p_model))
 
 
-def get_qcbm_probs(qc, params, param_values, num_labels, shots=1000):
+def get_qcbm_probs(qc, params, param_values, num_labels, shots=4096):
     bound = qc.assign_parameters(param_values)
     simulator = Aer.get_backend("qasm_simulator")
     compiled = transpile(bound, simulator)
@@ -175,10 +175,10 @@ labeled_data = df["MAGNITUDE"].map(hail_size_to_label).dropna().astype(int)
 num_qubits = int(np.ceil(np.log2(len(hail_sizes))))
 
 # Create quantum circuit and paramter vector for QCBM
-qc, params = create_qcbm_circuit(num_qubits, depth=2)
+qc, params = create_qcbm_circuit(num_qubits, depth=4)
 
 # Set number of shots (simulations)
-shots = 1000
+shots = 4096
 
 # Generate random parameter values for now (will optimize later)
 np.random.seed(42)
@@ -190,7 +190,7 @@ bound_circuit = qc.assign_parameters(param_values)
 # Simulate
 simulator = Aer.get_backend("qasm_simulator")
 compiled = transpile(bound_circuit, simulator)
-result = simulator.run(compiled, shots=1000).result()
+result = simulator.run(compiled, shots=shots).result()
 counts = result.get_counts()
 
 # Show histogram of bitstrings
@@ -216,3 +216,16 @@ trained_params = result.x
 final_probs = get_qcbm_probs(qc, params, trained_params, len(hail_probs), shots=shots)
 print("Empirical Hail PMF:", np.round(hail_probs, 3))
 print("Trained QCBM PMF:  ", np.round(final_probs, 3))
+
+plt.figure(figsize=(12, 5))
+x = np.arange(len(hail_probs))
+plt.bar(x - 0.2, hail_probs, width=0.4, label="Empirical Hail PMF")
+plt.bar(x + 0.2, final_probs, width=0.4, label="Trained QCBM PMF")
+plt.xlabel("Hail Size Label (Integer Encoding)")
+plt.ylabel("Probability")
+plt.title("Comparison of Empirical and QCBM-Generated Hail Size PMF")
+plt.xticks(x)
+plt.legend()
+plt.tight_layout()
+plt.savefig("qcbm_pmf_comparison.pdf", dpi=800, bbox_inches="tight")
+plt.show()
