@@ -84,6 +84,7 @@ r, p = calc_neg_binomial_params(events_per_year)
 # ------------------------------------------------------------------------------
 #    Probability Mass Function (PMF)
 # Create PMFs for hail event and hail size using the historical data
+# The PMF section is going to be used for QCBM techniques.
 # ------------------------------------------------------------------------------
 # Collect the weekly counts over all years
 weekly_counts = df.groupby("MONTH_WEEK_INDEX").size()
@@ -92,85 +93,96 @@ weekly_counts = weekly_counts.reindex(all_weeks, fill_value=0)
 avg_weekly_counts = weekly_counts / time_span
 event_pmf = weekly_counts / weekly_counts.sum()
 
-# Create size pmf
-size_counts = df.groupby("MAGNITUDE").size()
-hail_pmf = size_counts / size_counts.sum()
-hail_size = df["MAGNITUDE"].unique()
+# Get unique hail sizes and their counts
+size_counts = df["MAGNITUDE"].value_counts().sort_index()
+hail_sizes = size_counts.index.to_numpy()
+hail_freqs = size_counts.to_numpy()
+hail_probs = hail_freqs / hail_freqs.sum()
 
-# Vectorize the damage function
-damage_lookup = np.vectorize(damage_function)
+# Create a mapping from hail size to integer label (bitstring encoding)
+hail_size_to_label = {size: i for i, size in enumerate(hail_sizes)}
+label_to_hail_size = {i: size for i, size in enumerate(hail_sizes)}
 
-# ------------------------------------------------------------------------------
-#    MC Simulation
-# Simulate hail events for a year using the PMFs to sample events and sizes.
-# Each MC run is for a year totaling 48 weeks. For each year, the number of hail
-# events is sampled from a negative binomial distribution. Given the number of
-# events, the PMF for weekly events and hail size is used to distribute the
-# events per year and hail size.
-# ------------------------------------------------------------------------------
-losses = []
-for i in range(n_years):
-    # Sample number of hail events for the year
-    n_events = nbinom.rvs(r, p)
+# Create labeled data
+labeled_data = df["MAGNITUDE"].map(hail_size_to_label).dropna().astype(int)
 
-    if n_events == 0:
-        losses.append(0)
-        continue
+# Calculate number of quibits needed for encoding hail sizes
+num_qubits = int(np.ceil(np.log2(len(hail_sizes))))
 
-    # Sample the weeks an event occurs and the size of the hail
-    sampled_weeks = np.random.choice(all_weeks, n_events, p=event_pmf)
-    sampled_sizes = np.random.choice(hail_size, n_events, p=hail_pmf)
+# # Vectorize the damage function
+# damage_lookup = np.vectorize(damage_function)
+# stop
+# # ------------------------------------------------------------------------------
+# #    MC Simulation
+# # Simulate hail events for a year using the PMFs to sample events and sizes.
+# # Each MC run is for a year totaling 48 weeks. For each year, the number of hail
+# # events is sampled from a negative binomial distribution. Given the number of
+# # events, the PMF for weekly events and hail size is used to distribute the
+# # events per year and hail size.
+# # ------------------------------------------------------------------------------
+# losses = []
+# for i in range(n_years):
+#     # Sample number of hail events for the year
+#     n_events = nbinom.rvs(r, p)
 
-    # Look up the damage for the sampled sizes
-    damage = damage_lookup(sampled_sizes)
+#     if n_events == 0:
+#         losses.append(0)
+#         continue
 
-    # Calculate damage for the year
-    losses.append(damage.sum())
+#     # Sample the weeks an event occurs and the size of the hail
+#     sampled_weeks = np.random.choice(all_weeks, n_events, p=event_pmf)
+#     sampled_sizes = np.random.choice(hail_size, n_events, p=hail_pmf)
 
-losses = np.array(losses)
+#     # Look up the damage for the sampled sizes
+#     damage = damage_lookup(sampled_sizes)
 
-# ------------------------------------------------------------------------------
-#    Results
-# Calculate various metrics for the simulated data.
-# ------------------------------------------------------------------------------
-loss = losses.mean()
-var_95 = np.percentile(losses, 95)
-tvar_95 = losses[losses > var_95].mean()
+#     # Calculate damage for the year
+#     losses.append(damage.sum())
 
-print(f"Mean Loss: {loss:.2f}")
-print(f"95th Percentile Loss: {var_95:.2f}")
-print(f"Tail 95th Percentile Loss: {tvar_95:.2f}")
-print(f"Max Loss: {losses.max():.2f}")
+# losses = np.array(losses)
+
+# # ------------------------------------------------------------------------------
+# #    Results
+# # Calculate various metrics for the simulated data.
+# # ------------------------------------------------------------------------------
+# loss = losses.mean()
+# var_95 = np.percentile(losses, 95)
+# tvar_95 = losses[losses > var_95].mean()
+
+# print(f"Mean Loss: {loss:.2f}")
+# print(f"95th Percentile Loss: {var_95:.2f}")
+# print(f"Tail 95th Percentile Loss: {tvar_95:.2f}")
+# print(f"Max Loss: {losses.max():.2f}")
 
 
-# Plot cumulative distribution function (CDF) of losses
-sorted_losses = np.sort(losses)
-cdf = np.arange(1, len(sorted_losses) + 1) / len(sorted_losses)
+# # Plot cumulative distribution function (CDF) of losses
+# sorted_losses = np.sort(losses)
+# cdf = np.arange(1, len(sorted_losses) + 1) / len(sorted_losses)
 
-plt.plot(sorted_losses, cdf)
-plt.xlabel("Loss")
-plt.ylabel("Cumulative Probability")
-plt.tight_layout()
-plt.savefig("losses_cdf.pdf", dpi=800, bbox_inches="tight")
-plt.show()
+# plt.plot(sorted_losses, cdf)
+# plt.xlabel("Loss")
+# plt.ylabel("Cumulative Probability")
+# plt.tight_layout()
+# plt.savefig("losses_cdf.pdf", dpi=800, bbox_inches="tight")
+# plt.show()
 
-# Plot histogram of losses
-counts, bin_edges = np.histogram(losses, bins=50, density=True)
-bin_centers = 0.5 * (bin_edges[1:] + bin_edges[:-1])
-plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], edgecolor="black", lw=1)
-plt.xlabel("Loss (arb.)")
-plt.ylabel("Probability Density")
-plt.tight_layout()
-plt.savefig("losses_histogram.pdf", dpi=800, bbox_inches="tight")
-plt.show()
+# # Plot histogram of losses
+# counts, bin_edges = np.histogram(losses, bins=50, density=True)
+# bin_centers = 0.5 * (bin_edges[1:] + bin_edges[:-1])
+# plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], edgecolor="black", lw=1)
+# plt.xlabel("Loss (arb.)")
+# plt.ylabel("Probability Density")
+# plt.tight_layout()
+# plt.savefig("losses_histogram.pdf", dpi=800, bbox_inches="tight")
+# plt.show()
 
-# Slice off the first bin
-counts = counts[1:]
-bin_centers = bin_centers[1:]
-bin_width = bin_edges[1] - bin_edges[0]
+# # Slice off the first bin
+# counts = counts[1:]
+# bin_centers = bin_centers[1:]
+# bin_width = bin_edges[1] - bin_edges[0]
 
-# Plot
-plt.bar(bin_centers, counts, width=bin_width, edgecolor="black", lw=1)
-plt.tight_layout()
-plt.savefig("losses_histogram_no_zero.pdf", dpi=800, bbox_inches="tight")
-plt.show()
+# # Plot
+# plt.bar(bin_centers, counts, width=bin_width, edgecolor="black", lw=1)
+# plt.tight_layout()
+# plt.savefig("losses_histogram_no_zero.pdf", dpi=800, bbox_inches="tight")
+# plt.show()
