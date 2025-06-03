@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from scipy.stats import nbinom
+from qiskit import QuantumCircuit
+from qiskit.circuit import ParameterVector
 import os
 import datetime
 import glob
@@ -61,6 +63,28 @@ def calc_neg_binomial_params(data):
     return r, p
 
 
+def create_qcbm_circuit(num_qubits, depth=2):
+    """Create a quantum circuit for the Quantum Circuit Born Machine (QCBM)."""
+    # Each qubit gets 1 rotation per layer → total parameters = num_qubits * depth
+    params = ParameterVector("theta", length=num_qubits * depth)
+    qc = QuantumCircuit(num_qubits)
+
+    param_idx = 0
+    for d in range(depth):
+        # Layer: Ry rotations
+        for q in range(num_qubits):
+            qc.ry(params[param_idx], q)
+            param_idx += 1
+
+        # Layer: CNOT ring entanglement
+        for q in range(num_qubits - 1):
+            qc.cx(q, q + 1)
+        qc.cx(num_qubits - 1, 0)  # Close the ring
+
+    qc.measure_all()
+    return qc, params
+
+
 # ------------------------------------------------------------------------------
 #    Ingest and Process Data
 # Ingest data from concatenated csv file (see hail_data_processing.py) and
@@ -108,6 +132,7 @@ labeled_data = df["MAGNITUDE"].map(hail_size_to_label).dropna().astype(int)
 
 # Calculate number of quibits needed for encoding hail sizes
 num_qubits = int(np.ceil(np.log2(len(hail_sizes))))
+
 
 # # Vectorize the damage function
 # damage_lookup = np.vectorize(damage_function)
