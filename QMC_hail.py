@@ -1,3 +1,9 @@
+# The following script takes the classical Monte Carlo approach to simulate hail
+# events (MC_hail.py) and modifies to use quantum Monte Carlo (QMC) methods.
+# Specifically, we will you quantum circuit Born machines (QCBM) to learn the
+# Probability Mass Function (PMF) of events and hail size, and also
+# quantum amplitude estimation (QAE) to estimate the expected loss.
+# ------------------------------------------------------------------------------
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
