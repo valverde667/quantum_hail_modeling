@@ -74,7 +74,7 @@ def calc_neg_binomial_params(data):
     return r, p
 
 
-def create_qcbm_circuit(num_qubits, depth=2):
+def create_qcbm_circuit(num_qubits, depth):
     """Create a quantum circuit for the Quantum Circuit Born Machine (QCBM)."""
     # Each qubit gets 1 rotation per layer → total parameters = num_qubits * depth
     params = ParameterVector("theta", length=num_qubits * depth)
@@ -107,7 +107,7 @@ def kl_divergence(p_target, p_model):
     return np.sum(rel_entr(p_target, p_model))
 
 
-def get_qcbm_probs(qc, params, param_values, num_labels, shots=2048):
+def get_qcbm_probs(qc, params, param_values, num_labels, shots):
     bound = qc.assign_parameters(param_values)
     simulator = Aer.get_backend("qasm_simulator")
     compiled = transpile(bound, simulator)
@@ -124,8 +124,9 @@ def get_qcbm_probs(qc, params, param_values, num_labels, shots=2048):
     return freq / shots
 
 
-def qcbm_objective(param_values, qc, params, target_pmf):
-    model_pmf = get_qcbm_probs(qc, params, param_values, num_labels=len(target_pmf))
+def qcbm_objective(param_values, qc, params, target_pmf, shots):
+    num_labels = len(target_pmf)
+    model_pmf = get_qcbm_probs(qc, params, param_values, num_labels, shots)
     return kl_divergence(target_pmf, model_pmf)
 
 
@@ -178,13 +179,10 @@ labeled_data = df["MAGNITUDE"].map(hail_size_to_label).dropna().astype(int)
 num_qubits = int(np.ceil(np.log2(len(hail_sizes))))
 
 # Create quantum circuit and paramter vector for QCBM
-qc, params = create_qcbm_circuit(num_qubits, depth=4)
-
-# Set number of shots (simulations)
-shots = 2048
+qc, params = create_qcbm_circuit(num_qubits, qc_depth)
 
 # Generate random parameter values for now (will optimize later)
-np.random.seed(42)
+np.random.seed(random_seed)
 param_values = 2 * np.pi * np.random.rand(len(params))  # between 0 and 2π
 
 # Bind parameters to circuit
@@ -193,7 +191,7 @@ bound_circuit = qc.assign_parameters(param_values)
 # Simulate
 simulator = Aer.get_backend("qasm_simulator")
 compiled = transpile(bound_circuit, simulator)
-result = simulator.run(compiled, shots=shots).result()
+result = simulator.run(compiled, shots=n_shots).result()
 counts = result.get_counts()
 
 # Show histogram of bitstrings
@@ -209,14 +207,14 @@ init_params = 2 * np.pi * np.random.rand(len(params))
 result = minimize(
     qcbm_objective,
     init_params,
-    args=(qc, params, hail_probs),
+    args=(qc, params, hail_probs, n_shots),
     method="COBYLA",
     options={"maxiter": 100, "disp": True},
 )
 
 trained_params = result.x
 
-final_probs = get_qcbm_probs(qc, params, trained_params, len(hail_probs), shots=shots)
+final_probs = get_qcbm_probs(qc, params, trained_params, len(hail_probs), n_shots)
 print("Empirical Hail PMF:", np.round(hail_probs, 3))
 print("Trained QCBM PMF:  ", np.round(final_probs, 3))
 
