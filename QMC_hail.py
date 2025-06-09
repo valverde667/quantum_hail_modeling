@@ -33,12 +33,14 @@ set_plot_style()
 #    Variables
 # Define any useful variables here.
 # ------------------------------------------------------------------------------
-n_years = 100000  # Number of years to simulate
+n_years = int(1e6)  # Number of years to simulate
 n_weeks = 48  # Number of weeks in a year
-np.random.seed(42)
+random_seed = 42
 start_year = 1980
 end_year = 2024
 time_span = end_year - start_year  # Time span in years
+qc_depth = 4  # Depth of the quantum circuit for QCBM
+n_shots = 2048  # Number of shots for QCBM simulation
 
 
 # ------------------------------------------------------------------------------
