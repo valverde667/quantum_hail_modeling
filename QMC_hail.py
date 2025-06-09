@@ -61,7 +61,22 @@ def damage_function(size):
 
 
 def calc_neg_binomial_params(data):
-    """Calculate negative binomial parameters using method of moments."""
+    """Calculate negative binomial parameters using method of moments.
+
+    A negative binomial distribution is good for data that is overdispersed (variance
+    much larger than mean). The parameters for the negative binomial distribution,
+    r and p, are calculated after checking that the data is oversdispersed. If it
+    is not, we fallback to a Poisson assumption. Instaed of having to call a Poisson
+    distribution later on, the limits for the negative binomial distribution are
+    set to follow Poisson by letting r=infinity and p close to 1.
+
+    Parameters:
+    ----------
+    r : float
+        Number of scuccesses until the experiment is stopped.
+    p : float
+        Probability of success in each trial.
+    """
     mu = data.mean()
     var = data.var()  # Fix: use actual sample variance
 
@@ -75,7 +90,28 @@ def calc_neg_binomial_params(data):
 
 
 def create_qcbm_circuit(num_qubits, depth):
-    """Create a quantum circuit for the Quantum Circuit Born Machine (QCBM)."""
+    """Create a quantum circuit for the Quantum Circuit Born Machine (QCBM).
+
+    The structure uses ring entanglement where each quibit is entangled using a
+    CNOT gate with its successive neighbor, e.g., q_1 -> q_2 -> q_3 -> q_1. Each
+    quibit is operated on by a Ry rotation gate and teh entire structures is
+    repeated for depth number of times.
+
+    Parameters
+    ----------
+    num_qubits : int
+        Number of qubits in the circuit.
+    depth : int
+        Depth of the circuit, i.e., number of layers of gates.
+
+    Returns
+    -------
+    qc : QuantumCircuit
+        The quantum circuit for the QCBM that can be used for measurement and
+        optimization.
+    params : dict or list
+        Contains parameter objects from qiskit.circuit.Parameter.
+    """
     # Each qubit gets 1 rotation per layer → total parameters = num_qubits * depth
     params = ParameterVector("theta", length=num_qubits * depth)
     qc = QuantumCircuit(num_qubits)
@@ -108,6 +144,29 @@ def kl_divergence(p_target, p_model):
 
 
 def get_qcbm_probs(qc, params, param_values, num_labels, shots):
+    """Function to create circuit, sumulate, and measure.
+
+    The QCBM circuit is assigned the parameter values and then simulated for a
+    number of shots. Each shot, the bitstring measured is collected under counts.
+    These bitstrings correspond to specific values encoded and the bitstrings are
+    transformed to these known labels and collected as freqs.
+
+    Parameters
+    ----------
+    qc : QuantumCircuit object
+        The designed QCBM that is to be simulated.
+    params : dict or list
+        Contains the Ry rotation gates.
+    param_values : np.array
+        Contains the Ry rotation angle values in radiasn.
+    num_labels : int
+        Number of labels that are relevant and are to be extracted.
+
+    Returns
+    -------
+    pmf : np.array
+        Probability mass function (PMF) of the labels after simulation.
+    """
     bound = qc.assign_parameters(param_values)
     simulator = Aer.get_backend("qasm_simulator")
     compiled = transpile(bound, simulator)
@@ -121,10 +180,13 @@ def get_qcbm_probs(qc, params, param_values, num_labels, shots):
         if label < num_labels:
             freq[label] += count
 
-    return freq / shots
+    pmf = freq / freq.sum()  # Normalize to get PMF
+
+    return pmf
 
 
 def qcbm_objective(param_values, qc, params, target_pmf, shots):
+    """Objective function for QCBM optimization."""
     num_labels = len(target_pmf)
     model_pmf = get_qcbm_probs(qc, params, param_values, num_labels, shots)
     return kl_divergence(target_pmf, model_pmf)
