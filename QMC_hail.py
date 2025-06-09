@@ -3,6 +3,7 @@
 # Specifically, we will you quantum circuit Born machines (QCBM) to learn the
 # Probability Mass Function (PMF) of events and hail size, and also
 # quantum amplitude estimation (QAE) to estimate the expected loss.
+# Note that Qiskit 2.0.2 and qiskit-aer 0.17.0 are required to run this script.
 # ------------------------------------------------------------------------------
 import numpy as np
 import matplotlib.pyplot as plt
@@ -104,7 +105,7 @@ def kl_divergence(p_target, p_model):
     return np.sum(rel_entr(p_target, p_model))
 
 
-def get_qcbm_probs(qc, params, param_values, num_labels, shots=4096):
+def get_qcbm_probs(qc, params, param_values, num_labels, shots=2048):
     bound = qc.assign_parameters(param_values)
     simulator = Aer.get_backend("qasm_simulator")
     compiled = transpile(bound, simulator)
@@ -178,7 +179,7 @@ num_qubits = int(np.ceil(np.log2(len(hail_sizes))))
 qc, params = create_qcbm_circuit(num_qubits, depth=4)
 
 # Set number of shots (simulations)
-shots = 4096
+shots = 2048
 
 # Generate random parameter values for now (will optimize later)
 np.random.seed(42)
