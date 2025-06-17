@@ -113,20 +113,42 @@ def create_qcbm_circuit(num_qubits, depth):
         Contains parameter objects from qiskit.circuit.Parameter.
     """
     # Each qubit gets 1 rotation per layer → total parameters = num_qubits * depth
-    params = ParameterVector("theta", length=num_qubits * depth)
+    num_params = num_qubits * 7  # 3 Rx, 3 Rz per qubit (grouped into 3 rotation layers)
+    params = ParameterVector("theta", length=num_params)
     qc = QuantumCircuit(num_qubits)
 
     param_idx = 0
-    for d in range(depth):
-        # Layer: Ry rotations
-        for q in range(num_qubits):
-            qc.ry(params[param_idx], q)
-            param_idx += 1
 
-        # Layer: CNOT ring entanglement
-        for q in range(num_qubits - 1):
-            qc.cx(q, q + 1)
-        qc.cx(num_qubits - 1, 0)  # Close the ring
+    # Rotation Layer 1: Rx -> Rz
+    for q in range(num_qubits):
+        qc.rx(params[param_idx], q)
+        param_idx += 1
+        qc.rz(params[param_idx], q)
+        param_idx += 1
+
+    # Entangling Layer 1: CNOT ladder (q → q+1)
+    for q in range(num_qubits - 1):
+        qc.cx(q, q + 1)
+
+    # Rotation Layer 2: Rz -> Rx -> Rz
+    for q in range(num_qubits):
+        qc.rz(params[param_idx], q)
+        param_idx += 1
+        qc.rx(params[param_idx], q)
+        param_idx += 1
+        qc.rz(params[param_idx], q)
+        param_idx += 1
+
+    # Entangling Layer 2: CNOT ladder (q+1 → q)
+    for q in range(num_qubits - 1):
+        qc.cx(q, q + 1)
+
+    # Rotation Layer 3: Rz -> Rx
+    for q in range(num_qubits):
+        qc.rz(params[param_idx], q)
+        param_idx += 1
+        qc.rx(params[param_idx], q)
+        param_idx += 1
 
     qc.measure_all()
     return qc, params
