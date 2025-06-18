@@ -350,77 +350,83 @@ hail_sizes = size_counts.index.to_numpy()
 hail_freqs = size_counts.to_numpy()
 hail_probs = hail_freqs / hail_freqs.sum()
 
-# Create a mapping from hail size to integer label (bitstring encoding)
-hail_size_to_label = {size: i for i, size in enumerate(hail_sizes)}
-label_to_hail_size = {i: size for i, size in enumerate(hail_sizes)}
+# ------------------------------------------------------------------------------
+#   Quantum Circuit Born Machine (QCBM)
+# The QCBM section is going to be used for QCBM techniques.
+# ------------------------------------------------------------------------------
+do_qcbm = True  # Flag to indicate whether to run QCBM
+if do_qcbm:
+    # Create a mapping from hail size to integer label (bitstring encoding)
+    hail_size_to_label = {size: i for i, size in enumerate(hail_sizes)}
+    label_to_hail_size = {i: size for i, size in enumerate(hail_sizes)}
 
-# Create labeled data
-labeled_data = df["MAGNITUDE"].map(hail_size_to_label).dropna().astype(int)
+    # Create labeled data
+    labeled_data = df["MAGNITUDE"].map(hail_size_to_label).dropna().astype(int)
 
-# Calculate number of quibits needed for encoding hail sizes
-num_qubits = int(np.ceil(np.log2(len(hail_sizes))))
+    # Calculate number of quibits needed for encoding hail sizes
+    num_qubits = int(np.ceil(np.log2(len(hail_sizes))))
 
-# Create quantum circuit and paramter vector for QCBM
-qc, params = create_qcbm_circuit(num_qubits, qc_depth)
+    # Create quantum circuit and paramter vector for QCBM
+    qc, params = create_qcbm_circuit(num_qubits, qc_depth)
 
-# Generate random parameter values for now (will optimize later)
-np.random.seed(random_seed)
-param_values = 2 * np.pi * np.random.rand(len(params))  # between 0 and 2π
+    # Generate random parameter values for now (will optimize later)
+    np.random.seed(random_seed)
+    param_values = 2 * np.pi * np.random.rand(len(params))  # between 0 and 2π
 
-# Bind parameters to circuit
-bound_circuit = qc.assign_parameters(param_values)
+    # Bind parameters to circuit
+    bound_circuit = qc.assign_parameters(param_values)
 
-# Simulate
-simulator = Aer.get_backend("qasm_simulator")
-compiled = transpile(bound_circuit, simulator)
-result = simulator.run(compiled, shots=n_shots).result()
-counts = result.get_counts()
+    # Simulate
+    simulator = Aer.get_backend("qasm_simulator")
+    compiled = transpile(bound_circuit, simulator)
+    result = simulator.run(compiled, shots=n_shots).result()
+    counts = result.get_counts()
 
-# Show histogram of bitstrings
-plot_histogram(counts)
-plt.tight_layout()
-plt.savefig("qcbm_histogram.pdf", dpi=800, bbox_inches="tight")
-# plt.show()
+    # Show histogram of bitstrings
+    plot_histogram(counts)
+    plt.tight_layout()
+    plt.savefig("qcbm_histogram.pdf", dpi=800, bbox_inches="tight")
+    # plt.show()
 
-# Optimize the QCMB parameters to match the target PMF
-init_params = 2 * np.pi * np.random.rand(len(params))
+    # Optimize the QCMB parameters to match the target PMF
+    init_params = 2 * np.pi * np.random.rand(len(params))
 
-# Assign the objective function based on the chosen method
-if objective_function == "kl_divergence":
-    objective_func = kl_divergence
-elif objective_function == "js_divergence":
-    objective_func = js_divergence
-elif objective_function == "hellinger_distance":
-    objective_func = hellinger_distance
-elif objective_function == "total_variation_distance":
-    objective_func = total_variation_distance
-else:
-    raise ValueError("Unknown objective function specified.")
+    # Assign the objective function based on the chosen method
+    if objective_function == "kl_divergence":
+        objective_func = kl_divergence
+    elif objective_function == "js_divergence":
+        objective_func = js_divergence
+    elif objective_function == "hellinger_distance":
+        objective_func = hellinger_distance
+    elif objective_function == "total_variation_distance":
+        objective_func = total_variation_distance
+    else:
+        raise ValueError("Unknown objective function specified.")
 
-# Optimize
-result = minimize(
-    qcbm_objective,
-    init_params,
-    args=(qc, params, hail_probs, n_shots, objective_func),
-    method="COBYLA",
-    options={"maxiter": max_iterations, "disp": True},
-)
+    # Optimize
+    result = minimize(
+        qcbm_objective,
+        init_params,
+        args=(qc, params, hail_probs, n_shots, objective_func),
+        method="COBYLA",
+        options={"maxiter": max_iterations, "disp": True},
+    )
 
-trained_params = result.x
+    trained_params = result.x
 
-final_probs = get_qcbm_probs(qc, params, trained_params, len(hail_probs), n_shots)
-print("Empirical Hail PMF:", np.round(hail_probs, 3))
-print("Trained QCBM PMF:  ", np.round(final_probs, 3))
+    final_probs = get_qcbm_probs(qc, params, trained_params, len(hail_probs), n_shots)
+    print("Empirical Hail PMF:", np.round(hail_probs, 3))
+    print("Trained QCBM PMF:  ", np.round(final_probs, 3))
 
-plt.figure(figsize=(12, 5))
-x = np.arange(len(hail_probs))
-plt.bar(x - 0.2, hail_probs, width=0.4, label="Empirical Hail PMF")
-plt.bar(x + 0.2, final_probs, width=0.4, label="Trained QCBM PMF")
-plt.xlabel("Hail Size Label (Integer Encoding)")
-plt.ylabel("Probability")
-plt.title("Comparison of Empirical and QCBM-Generated Hail Size PMF")
-plt.xticks(x)
-plt.legend()
-plt.tight_layout()
-plt.savefig("qcbm_pmf_comparison.pdf", dpi=800, bbox_inches="tight")
-plt.show()
+    plt.figure(figsize=(12, 5))
+    x = np.arange(len(hail_probs))
+    plt.bar(x - 0.2, hail_probs, width=0.4, label="Empirical Hail PMF")
+    plt.bar(x + 0.2, final_probs, width=0.4, label="Trained QCBM PMF")
+    plt.xlabel("Hail Size Label (Integer Encoding)")
+    plt.ylabel("Probability")
+    plt.title("Comparison of Empirical and QCBM-Generated Hail Size PMF")
+    plt.xticks(x)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("qcbm_pmf_comparison.pdf", dpi=800, bbox_inches="tight")
+    plt.show()
