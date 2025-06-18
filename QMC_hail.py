@@ -41,6 +41,9 @@ end_year = 2024
 time_span = end_year - start_year  # Time span in years
 qc_depth = 4  # Depth of the quantum circuit for QCBM
 n_shots = 2048  # Number of shots for QCBM simulation
+objective_function = (
+    "total_variation_distance"  # Objective function for QCBM optimization
+)
 
 
 # ------------------------------------------------------------------------------
@@ -165,6 +168,100 @@ def kl_divergence(p_target, p_model):
     return np.sum(rel_entr(p_target, p_model))
 
 
+def js_divergence(p_target, p_model):
+    """Compute Jensen-Shannon divergence between two PMFs.
+    The Jensen-Shannon divergence is a symmetrized and smoothed version of the
+    KL divergence. It is defined as:
+    JS(P || Q) = 0.5 * (KL(P || M) + KL(Q || M))
+    where M = 0.5 * (P + Q) is the average distribution.
+
+    Parameters
+    ----------
+    p_target : array-like
+        Target probability mass function (PMF).
+    p_model : array-like
+        Model probability mass function (PMF).
+
+    Returns
+    -------
+    jsd : float
+        Jensen-Shannon divergence.
+    """
+    # Smooth with epsilon to avoid log(0)
+    epsilon = 1e-9
+    p = np.array(p_target) + epsilon
+    q = np.array(p_model) + epsilon
+    p /= p.sum()
+    q /= q.sum()
+
+    m = 0.5 * (p + q)
+
+    # Calculate KL divergence for JS divergence
+    jsd = np.sum(0.5 * (rel_entr(p, m) + rel_entr(q, m)))
+
+    return jsd
+
+
+def hellinger_distance(p_target, p_model):
+    """Compute Hellinger distance between two PMFs.
+
+    The Hellinger distance is a measure of similarity between two probability
+    distributions. It is defined as:
+    H(P, Q) = 1 / sqrt(2) * || sqrt(P) - sqrt(Q) ||_2
+    where || . ||_2 is the L2 norm.
+
+    Parameters
+    ----------
+    p_target : array-like
+        Target probability mass function (PMF).
+    p_model : array-like
+        Model probability mass function (PMF).
+
+    Returns
+    -------
+    hd : float
+        Hellinger distance.
+    """
+    # Smooth with epsilon to avoid sqrt(0)
+    epsilon = 1e-9
+    p = np.sqrt(np.array(p_target) + epsilon)
+    q = np.sqrt(np.array(p_model) + epsilon)
+
+    hd = np.linalg.norm(p - q) / np.sqrt(2)
+
+    return hd
+
+
+def total_variation_distance(p_target, p_model):
+    """Compute Total Variation distance between two PMFs.
+
+    The Total Variation distance is a measure of the difference between two
+    probability distributions. It is defined as:
+    TV(P, Q) = 0.5 * || P - Q ||_1
+    where || . ||_1 is the L1 norm.
+
+    Parameters
+    ----------
+    p_target : array-like
+        Target probability mass function (PMF).
+    p_model : array-like
+        Model probability mass function (PMF).
+
+    Returns
+    -------
+    tvd : float
+        Total Variation distance.
+    """
+    # Smooth with epsilon to avoid 0 differences
+    epsilon = 1e-9
+    p = np.array(p_target) + epsilon
+    q = np.array(p_model) + epsilon
+
+    tvd = 0.5 * np.sum(np.abs(p - q))
+
+    return tvd
+
+
 def get_qcbm_probs(qc, params, param_values, num_labels, shots):
     """Function to create circuit, sumulate, and measure.
 
@@ -207,11 +304,11 @@ def get_qcbm_probs(qc, params, param_values, num_labels, shots):
     return pmf
 
 
-def qcbm_objective(param_values, qc, params, target_pmf, shots):
+def qcbm_objective(param_values, qc, params, target_pmf, shots, function):
     """Objective function for QCBM optimization."""
     num_labels = len(target_pmf)
     model_pmf = get_qcbm_probs(qc, params, param_values, num_labels, shots)
-    return kl_divergence(target_pmf, model_pmf)
+    return function(target_pmf, model_pmf)
 
 
 # ------------------------------------------------------------------------------
@@ -287,11 +384,23 @@ plt.savefig("qcbm_histogram.pdf", dpi=800, bbox_inches="tight")
 # Optimize the QCMB parameters to match the target PMF
 init_params = 2 * np.pi * np.random.rand(len(params))
 
+# Assign the objective function based on the chosen method
+if objective_function == "kl_divergence":
+    objective_func = kl_divergence
+elif objective_function == "js_divergence":
+    objective_func = js_divergence
+elif objective_function == "hellinger_distance":
+    objective_func = hellinger_distance
+elif objective_function == "total_variation_distance":
+    objective_func = total_variation_distance
+else:
+    raise ValueError("Unknown objective function specified.")
+
 # Optimize
 result = minimize(
     qcbm_objective,
     init_params,
-    args=(qc, params, hail_probs, n_shots),
+    args=(qc, params, hail_probs, n_shots, objective_func),
     method="COBYLA",
     options={"maxiter": 100, "disp": True},
 )
