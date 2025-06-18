@@ -44,6 +44,7 @@ n_shots = 2048  # Number of shots for QCBM simulation
 objective_function = (
     "total_variation_distance"  # Objective function for QCBM optimization
 )
+max_iterations = 100  # Maximum iterations for optimization
 
 
 # ------------------------------------------------------------------------------
@@ -402,7 +403,7 @@ result = minimize(
     init_params,
     args=(qc, params, hail_probs, n_shots, objective_func),
     method="COBYLA",
-    options={"maxiter": 100, "disp": True},
+    options={"maxiter": max_iterations, "disp": True},
 )
 
 trained_params = result.x
