@@ -17,3 +17,7 @@
 *.numbers
 *.key
 *.pptx
+
+# Ignore directories 
+__pycache__/
+qcbm/
