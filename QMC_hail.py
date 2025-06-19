@@ -20,6 +20,8 @@ from qiskit_aer import Aer
 from qiskit.visualization import plot_histogram
 from qiskit.circuit import ParameterVector
 
+import pennylane as qml
+
 import os
 import datetime
 import glob
@@ -354,7 +356,7 @@ hail_probs = hail_freqs / hail_freqs.sum()
 #   Quantum Circuit Born Machine (QCBM)
 # The QCBM section is going to be used for QCBM techniques.
 # ------------------------------------------------------------------------------
-do_qcbm = True  # Flag to indicate whether to run QCBM
+do_qcbm = False  # Flag to indicate whether to run QCBM
 if do_qcbm:
     # Create a mapping from hail size to integer label (bitstring encoding)
     hail_size_to_label = {size: i for i, size in enumerate(hail_sizes)}
@@ -430,3 +432,57 @@ if do_qcbm:
     plt.tight_layout()
     plt.savefig("qcbm_pmf_comparison.pdf", dpi=800, bbox_inches="tight")
     plt.show()
+
+# ------------------------------------------------------------------------------
+#   Quantum Amplitude Estimation (QAE)
+# The QAE section is going to be used for QAE techniques. We will use pennylane
+# since Qiskit has a broken import ecosystem for qiskit_algorithms.
+# ------------------------------------------------------------------------------
+damage_amplitudes = np.sqrt([damage_function(s) for s in hail_sizes])
+rotation_angles = 2 * np.arcsin(damage_amplitudes)  # controlled Ry angles
+
+# Determine number of qubits needed
+num_states = len(hail_probs)
+num_qubits = int(np.ceil(np.log2(num_states)))
+dev = qml.device("default.qubit", wires=num_qubits + 1, shots=1000)
+
+
+@qml.qnode(dev)
+def qae_circuit():
+    # Prepare empirical distribution state
+    qml.AmplitudeEmbedding(np.sqrt(hail_probs), wires=range(num_qubits), normalize=True)
+
+    # Apply controlled rotations based on hail state
+    for i in range(num_states):
+        bin_state = format(i, f"0{num_qubits}b")
+        for j, bit in enumerate(bin_state):
+            if bit == "0":
+                qml.PauliX(j)
+        qml.MultiControlledX(
+            control_wires=range(num_qubits),
+            wires=num_qubits,
+            control_values="1" * num_qubits,
+        )
+        qml.RY(rotation_angles[i], wires=num_qubits)
+        qml.MultiControlledX(
+            control_wires=range(num_qubits),
+            wires=num_qubits,
+            control_values="1" * num_qubits,
+        )
+        for j, bit in enumerate(bin_state):
+            if bit == "0":
+                qml.PauliX(j)
+
+    return qml.probs(wires=num_qubits)  # ancilla qubit
+
+
+# Run and extract amplitude (i.e., Pr[ancilla = 1])
+probs = qae_circuit()
+expected_loss_qae = probs[1]  # index 1 = ancilla measured as |1⟩
+print(f"Estimated Expected Loss via QAE: {expected_loss_qae:.4f}")
+
+# Compare to classical value
+expected_loss_classical = np.sum(
+    hail_probs * np.array([damage_function(s) for s in hail_sizes])
+)
+print(f"Expected Loss (Classical):        {expected_loss_classical:.4f}")
