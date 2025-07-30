@@ -180,7 +180,7 @@ def js_divergence(p_target, p_model):
     """Compute Jensen-Shannon divergence between two PMFs.
     The Jensen-Shannon divergence is a symmetrized and smoothed version of the
     KL divergence. It is defined as:
-    JS(P || Q) = 0.5 * (KL(P || M) + KL(Q || M))
+        JS(P || Q) = 0.5 * (KL(P || M) + KL(Q || M))
     where M = 0.5 * (P + Q) is the average distribution.
 
     Parameters
@@ -204,7 +204,7 @@ def js_divergence(p_target, p_model):
 
     m = 0.5 * (p + q)
 
-    # Calculate KL divergence for JS divergence
+    # Note that the JSD is the average of the KL divergence of KL(P||M) and KL(Q||M).
     jsd = np.sum(0.5 * (rel_entr(p, m) + rel_entr(q, m)))
 
     return jsd
