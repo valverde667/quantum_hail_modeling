@@ -215,7 +215,7 @@ def hellinger_distance(p_target, p_model):
 
     The Hellinger distance is a measure of similarity between two probability
     distributions. It is defined as:
-    H(P, Q) = 1 / sqrt(2) * || sqrt(P) - sqrt(Q) ||_2
+        H(P, Q) = 1 / sqrt(2) * || sqrt(P) - sqrt(Q) ||_2
     where || . ||_2 is the L2 norm.
 
     Parameters
@@ -245,7 +245,7 @@ def total_variation_distance(p_target, p_model):
 
     The Total Variation distance is a measure of the difference between two
     probability distributions. It is defined as:
-    TV(P, Q) = 0.5 * || P - Q ||_1
+        TV(P, Q) = 0.5 * || P - Q ||_1
     where || . ||_1 is the L1 norm.
 
     Parameters
@@ -314,8 +314,9 @@ def get_qcbm_probs(qc, params, param_values, num_labels, shots):
 
 def qcbm_objective(param_values, qc, params, target_pmf, shots, function):
     """Objective function for QCBM optimization."""
-    num_labels = len(target_pmf)
-    model_pmf = get_qcbm_probs(qc, params, param_values, num_labels, shots)
+    model_pmf = get_qcbm_probs(
+        qc, params, param_values, num_labels=len(target_pmf), shots=shots
+    )
     return function(target_pmf, model_pmf)
 
 
