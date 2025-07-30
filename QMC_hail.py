@@ -391,10 +391,6 @@ if do_qcbm:
     plot_histogram(counts)
     plt.tight_layout()
     plt.savefig("qcbm_histogram.pdf", bbox_inches="tight")
-    # plt.show()
-
-    # Optimize the QCMB parameters to match the target PMF
-    init_params = 2 * np.pi * np.random.rand(len(params))
 
     # Assign the objective function based on the chosen method
     if objective_function == "kl_divergence":
@@ -408,7 +404,8 @@ if do_qcbm:
     else:
         raise ValueError("Unknown objective function specified.")
 
-    # Optimize
+    # Optimize the QCMB parameters to match the target PMF
+    init_params = 2 * np.pi * np.random.rand(len(params))
     result = minimize(
         qcbm_objective,
         init_params,
@@ -429,9 +426,8 @@ if do_qcbm:
     plt.bar(x + 0.2, final_probs, width=0.4, label="Trained QCBM PMF")
     plt.xlabel("arb.")
     plt.ylabel("Probability")
-    # plt.title("Comparison of Empirical and QCBM-Generated Hail Size PMF")
     plt.xticks(x)
-    # plt.legend()
+    plt.legend()
     plt.tight_layout()
     plt.savefig("qcbm_pmf_comparison.pdf", dpi=800, bbox_inches="tight")
     plt.show()
