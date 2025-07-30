@@ -170,6 +170,9 @@ def kl_divergence(p_target, p_model):
     p_model = np.array(p_model) + epsilon
     p_target /= p_target.sum()
     p_model /= p_model.sum()
+
+    # Compute relative entropy with scipy import
+    # see (https://docs.scipy.org/doc/scipy/reference/generated/scipy.special.rel_entr.html)
     return np.sum(rel_entr(p_target, p_model))
 
 
