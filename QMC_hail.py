@@ -98,32 +98,33 @@ def calc_neg_binomial_params(data):
 def create_qcbm_circuit(num_qubits, depth):
     """Create a quantum circuit for the Quantum Circuit Born Machine (QCBM).
 
-    The structure uses ring entanglement where each quibit is entangled using a
-    CNOT gate with its successive neighbor, e.g., q_1 -> q_2 -> q_3 -> q_1. Each
-    quibit is operated on by a Ry rotation gate and teh entire structures is
-    repeated for depth number of times.
+    The architecture from https://docs.yaoquantum.org/v0.5/examples/QCBM is
+    used: Rx->Rz->CNOT->Rz->Rx->Rz->CNOT->Rz->Rx. The architecture is by no means
+    optimized to be the smallest or "best" but is used as a working model.
 
-    Parameters
-    ----------
-    num_qubits : int
-        Number of qubits in the circuit.
-    depth : int
-        Depth of the circuit, i.e., number of layers of gates.
+    Parameters:
+    -----------
+    num_quibits: int
+        Number of qubits to use for encoding.
+    depth: int (dummy)
+        Number of times to repeat circuit structure. The parameters is used as a
+        dummy variable for now.
 
-    Returns
-    -------
-    qc : QuantumCircuit
-        The quantum circuit for the QCBM that can be used for measurement and
-        optimization.
-    params : dict or list
+    Returns:
+    --------
+    qc : QuantumCircuit object
+        A quantum circuit object that can be used for measurement and optimization.
+    params: dict or list
         Contains parameter objects from qiskit.circuit.Parameter.
     """
-    # Each qubit gets 1 rotation per layer → total parameters = num_qubits * depth
-    num_params = num_qubits * 7  # 3 Rx, 3 Rz per qubit (grouped into 3 rotation layers)
+    # Initialize parameters and circuit object.
+    num_params = num_qubits * 7  # Calculated from architecture design (7 gates).
     params = ParameterVector("theta", length=num_params)
     qc = QuantumCircuit(num_qubits)
 
     param_idx = 0
+
+    # Build each gate for the circuit.
 
     # Rotation Layer 1: Rx -> Rz
     for q in range(num_qubits):
@@ -145,7 +146,7 @@ def create_qcbm_circuit(num_qubits, depth):
         qc.rz(params[param_idx], q)
         param_idx += 1
 
-    # Entangling Layer 2: CNOT ladder (q+1 → q)
+    # Entangling Layer 2: CNOT ladder (q → q+1)
     for q in range(num_qubits - 1):
         qc.cx(q, q + 1)
 
@@ -157,6 +158,7 @@ def create_qcbm_circuit(num_qubits, depth):
         param_idx += 1
 
     qc.measure_all()
+
     return qc, params
 
 
@@ -356,7 +358,7 @@ hail_probs = hail_freqs / hail_freqs.sum()
 #   Quantum Circuit Born Machine (QCBM)
 # The QCBM section is going to be used for QCBM techniques.
 # ------------------------------------------------------------------------------
-do_qcbm = False  # Flag to indicate whether to run QCBM
+do_qcbm = True  # Flag to indicate whether to run QCBM
 if do_qcbm:
     # Create a mapping from hail size to integer label (bitstring encoding)
     hail_size_to_label = {size: i for i, size in enumerate(hail_sizes)}
@@ -424,11 +426,11 @@ if do_qcbm:
     x = np.arange(len(hail_probs))
     plt.bar(x - 0.2, hail_probs, width=0.4, label="Empirical Hail PMF")
     plt.bar(x + 0.2, final_probs, width=0.4, label="Trained QCBM PMF")
-    plt.xlabel("Hail Size Label (Integer Encoding)")
+    plt.xlabel("arb.")
     plt.ylabel("Probability")
-    plt.title("Comparison of Empirical and QCBM-Generated Hail Size PMF")
+    # plt.title("Comparison of Empirical and QCBM-Generated Hail Size PMF")
     plt.xticks(x)
-    plt.legend()
+    # plt.legend()
     plt.tight_layout()
     plt.savefig("qcbm_pmf_comparison.pdf", dpi=800, bbox_inches="tight")
     plt.show()
@@ -440,38 +442,43 @@ if do_qcbm:
 # ------------------------------------------------------------------------------
 damage_amplitudes = np.sqrt([damage_function(s) for s in hail_sizes])
 rotation_angles = 2 * np.arcsin(damage_amplitudes)  # controlled Ry angles
-
+stop
 # Determine number of qubits needed
 num_states = len(hail_probs)
 num_qubits = int(np.ceil(np.log2(num_states)))
 dev = qml.device("default.qubit", wires=num_qubits + 1, shots=1000)
 
 
+def pad_to_power_of_two(vec):
+    target_len = 2 ** int(np.ceil(np.log2(len(vec))))
+    padded = np.zeros(target_len)
+    padded[: len(vec)] = vec
+    return padded
+
+
+padded_probs = pad_to_power_of_two(hail_probs)
+padded_angles = pad_to_power_of_two(rotation_angles)
+
+
 @qml.qnode(dev)
 def qae_circuit():
     # Prepare empirical distribution state
-    qml.AmplitudeEmbedding(np.sqrt(hail_probs), wires=range(num_qubits), normalize=True)
+    qml.AmplitudeEmbedding(
+        np.sqrt(padded_probs),
+        wires=list(range(num_qubits)),
+        normalize=True,
+    )
 
     # Apply controlled rotations based on hail state
-    for i in range(num_states):
-        bin_state = format(i, f"0{num_qubits}b")
-        for j, bit in enumerate(bin_state):
-            if bit == "0":
-                qml.PauliX(j)
-        qml.MultiControlledX(
-            control_wires=range(num_qubits),
+    for i in range(len(padded_probs)):
+        control_values = [int(b) for b in format(i, f"0{num_qubits}b")]
+
+        qml.ControlledQubitUnitary(
+            qml.RY(padded_angles[i], wires=0).matrix(),
+            control_wires=list(range(num_qubits)),
             wires=num_qubits,
-            control_values="1" * num_qubits,
+            control_values=control_values,
         )
-        qml.RY(rotation_angles[i], wires=num_qubits)
-        qml.MultiControlledX(
-            control_wires=range(num_qubits),
-            wires=num_qubits,
-            control_values="1" * num_qubits,
-        )
-        for j, bit in enumerate(bin_state):
-            if bit == "0":
-                qml.PauliX(j)
 
     return qml.probs(wires=num_qubits)  # ancilla qubit
 
