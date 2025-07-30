@@ -368,9 +368,6 @@ if do_qcbm:
     hail_size_to_label = {size: i for i, size in enumerate(hail_sizes)}
     label_to_hail_size = {i: size for i, size in enumerate(hail_sizes)}
 
-    # Create labeled data
-    labeled_data = df["MAGNITUDE"].map(hail_size_to_label).dropna().astype(int)
-
     # Calculate number of quibits needed for encoding hail sizes
     num_qubits = int(np.ceil(np.log2(len(hail_sizes))))
 
