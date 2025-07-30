@@ -390,7 +390,7 @@ if do_qcbm:
     # Show histogram of bitstrings
     plot_histogram(counts)
     plt.tight_layout()
-    plt.savefig("qcbm_histogram.pdf", dpi=800, bbox_inches="tight")
+    plt.savefig("qcbm_histogram.pdf", bbox_inches="tight")
     # plt.show()
 
     # Optimize the QCMB parameters to match the target PMF
