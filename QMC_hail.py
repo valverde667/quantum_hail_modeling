@@ -26,6 +26,18 @@ import os
 import datetime
 import glob
 
+# For bash iteration
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--seed", type=int, default=1046, help="Random seed for parameter intialization."
+)
+parser.add_argument("--loss", type=str, default="mmd_loss", help="Loss function to use")
+
+args = parser.parse_args()
+
+
 from library import set_plot_style
 
 # Set plot style
@@ -37,13 +49,13 @@ set_plot_style()
 # ------------------------------------------------------------------------------
 n_years = int(1e6)  # Number of years to simulate
 n_weeks = 48  # Number of weeks in a year
-random_seed = 1046
+random_seed = args.seed
 start_year = 1980
 end_year = 2024
 time_span = end_year - start_year  # Time span in years
 qc_depth = 4  # Depth of the quantum circuit for QCBM
 n_shots = 2048  # Number of shots for QCBM simulation
-objective_function = "mmd_loss"  # Objective function for QCBM optimization
+objective_function = args.loss  # Objective function for QCBM optimization
 max_iterations = 200  # Maximum iterations for optimization
 
 
