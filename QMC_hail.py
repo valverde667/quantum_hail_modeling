@@ -57,6 +57,7 @@ qc_depth = 4  # Depth of the quantum circuit for QCBM
 n_shots = 2048  # Number of shots for QCBM simulation
 objective_function = args.loss  # Objective function for QCBM optimization
 max_iterations = 100  # Maximum iterations for optimization
+use_gradients = True
 
 
 # ------------------------------------------------------------------------------
@@ -450,15 +451,46 @@ if do_qcbm:
     else:
         raise ValueError("Unknown objective function specified.")
 
-    # Optimize the QCMB parameters to match the target PMF
+    # Initialize parameters
     init_params = 2 * np.pi * np.random.rand(len(params))
-    result = minimize(
-        qcbm_objective,
-        init_params,
-        args=(qc, params, hail_probs, n_shots, objective_func),
-        method="COBYLA",
-        options={"maxiter": max_iterations, "disp": True},
-    )
+
+    # Optimize with either a gradient-based or gradient free optimizer.
+    if use_gradients and objective_function in ["kl_divergence", "mmd_loss"]:
+
+        def grad_objective(params, qc, param_symbols, target_pmf, shots, loss_fn):
+            # Central difference gradient estimate (can replace with autograd later)
+            eps = 1e-5
+            grad = np.zeros_like(params)
+            for i in range(len(params)):
+                step = np.zeros_like(params)
+                step[i] = eps
+                grad[i] = (
+                    qcbm_objective(
+                        params + step, qc, param_symbols, target_pmf, shots, loss_fn
+                    )
+                    - qcbm_objective(
+                        params - step, qc, param_symbols, target_pmf, shots, loss_fn
+                    )
+                ) / (2 * eps)
+            return grad
+
+        result = minimize(
+            qcbm_objective,
+            init_params,
+            args=(qc, params, hail_probs, n_shots, objective_func),
+            method="L-BFGS-B",
+            jac=grad_objective,
+            options={"disp": True, "maxiter": max_iterations},
+        )
+    else:
+        # Fallback to derivative-free
+        result = minimize(
+            qcbm_objective,
+            init_params,
+            args=(qc, params, hail_probs, n_shots, objective_func),
+            method="COBYLA",
+            options={"maxiter": max_iterations, "disp": True},
+        )
 
     trained_params = result.x
 
