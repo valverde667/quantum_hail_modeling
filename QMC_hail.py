@@ -37,16 +37,14 @@ set_plot_style()
 # ------------------------------------------------------------------------------
 n_years = int(1e6)  # Number of years to simulate
 n_weeks = 48  # Number of weeks in a year
-random_seed = 42
+random_seed = 1046
 start_year = 1980
 end_year = 2024
 time_span = end_year - start_year  # Time span in years
 qc_depth = 4  # Depth of the quantum circuit for QCBM
 n_shots = 2048  # Number of shots for QCBM simulation
-objective_function = (
-    "total_variation_distance"  # Objective function for QCBM optimization
-)
-max_iterations = 100  # Maximum iterations for optimization
+objective_function = "mmd_loss"  # Objective function for QCBM optimization
+max_iterations = 200  # Maximum iterations for optimization
 
 
 # ------------------------------------------------------------------------------
@@ -270,6 +268,45 @@ def total_variation_distance(p_target, p_model):
     return tvd
 
 
+def mmd_loss(p_target, p_model, bandwidth=0.63):
+    """
+    Compute the Maximum Mean Discrepancy (MMD) between two PMFs using a Gaussian kernel.
+
+    Parameters
+    ----------
+    p_target : array-like
+        Target probability mass function (PMF).
+    p_model : array-like
+        Model probability mass function (PMF).
+    bandwidth : float
+        Bandwidth (sigma) for the Gaussian kernel.
+
+    Returns
+    -------
+    mmd : float
+        Maximum Mean Discrepancy between the two distributions.
+    """
+    p = np.array(p_target)
+    q = np.array(p_model)
+    x = np.arange(len(p))[:, None]  # shape (N, 1)
+    y = np.arange(len(q))[:, None]
+
+    def gaussian_kernel(a, b, bw):
+        dists = (a - b.T) ** 2
+        return np.exp(-dists / (2 * bw**2))
+
+    K_xx = gaussian_kernel(x, x, bandwidth)
+    K_yy = gaussian_kernel(y, y, bandwidth)
+    K_xy = gaussian_kernel(x, y, bandwidth)
+
+    mmd = (
+        np.dot(p, np.dot(K_xx, p))
+        + np.dot(q, np.dot(K_yy, q))
+        - 2 * np.dot(p, np.dot(K_xy, q))
+    )
+    return np.sqrt(mmd)
+
+
 def get_qcbm_probs(qc, params, param_values, num_labels, shots):
     """Function to create circuit, sumulate, and measure.
 
@@ -401,6 +438,8 @@ if do_qcbm:
         objective_func = hellinger_distance
     elif objective_function == "total_variation_distance":
         objective_func = total_variation_distance
+    elif objective_function == "mmd_loss":
+        objective_func = mmd_loss
     else:
         raise ValueError("Unknown objective function specified.")
 
