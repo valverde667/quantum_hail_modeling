@@ -435,11 +435,14 @@ if do_qcbm:
 # ------------------------------------------------------------------------------
 #   Quantum Amplitude Estimation (QAE)
 # The QAE section is going to be used for QAE techniques. We will use pennylane
-# since Qiskit has a broken import ecosystem for qiskit_algorithms.
+# since Qiskit has a broken import ecosystem for qiskit_algorithms. Note that,
+# while we do not yet run full QAE with Grover-style amplification, this setup
+# demonstrates how quantum circuits can be used to estimate risk metrics such as
+# expected loss, value-at-risk (VaR), and tail value-at-risk (TVaR).
 # ------------------------------------------------------------------------------
 damage_amplitudes = np.sqrt([damage_function(s) for s in hail_sizes])
 rotation_angles = 2 * np.arcsin(damage_amplitudes)  # controlled Ry angles
-stop
+
 # Determine number of qubits needed
 num_states = len(hail_probs)
 num_qubits = int(np.ceil(np.log2(num_states)))
