@@ -450,9 +450,12 @@ dev = qml.device("default.qubit", wires=num_qubits + 1, shots=1000)
 
 
 def pad_to_power_of_two(vec):
-    target_len = 2 ** int(np.ceil(np.log2(len(vec))))
+    """# Pad arrays with zeros."""
+    x = int(np.ceil(np.log2(len(vec))))
+    target_len = pow(2, x)
     padded = np.zeros(target_len)
     padded[: len(vec)] = vec
+
     return padded
 
 
