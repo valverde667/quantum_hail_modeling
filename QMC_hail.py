@@ -56,7 +56,7 @@ time_span = end_year - start_year  # Time span in years
 qc_depth = 4  # Depth of the quantum circuit for QCBM
 n_shots = 2048  # Number of shots for QCBM simulation
 objective_function = args.loss  # Objective function for QCBM optimization
-max_iterations = 200  # Maximum iterations for optimization
+max_iterations = 100  # Maximum iterations for optimization
 
 
 # ------------------------------------------------------------------------------
@@ -282,41 +282,36 @@ def total_variation_distance(p_target, p_model):
 
 def mmd_loss(p_target, p_model, bandwidth=0.63):
     """
-    Compute the Maximum Mean Discrepancy (MMD) between two PMFs using a Gaussian kernel.
-
-    Parameters
-    ----------
-    p_target : array-like
-        Target probability mass function (PMF).
-    p_model : array-like
-        Model probability mass function (PMF).
-    bandwidth : float
-        Bandwidth (sigma) for the Gaussian kernel.
-
-    Returns
-    -------
-    mmd : float
-        Maximum Mean Discrepancy between the two distributions.
+    Compute MMD between two PMFs with Gaussian kernel.
     """
-    p = np.array(p_target)
-    q = np.array(p_model)
-    x = np.arange(len(p))[:, None]  # shape (N, 1)
+    p = np.array(p_target, dtype=np.float64)
+    q = np.array(p_model, dtype=np.float64)
+
+    epsilon = 1e-10
+    p = np.clip(p, epsilon, 1)
+    q = np.clip(q, epsilon, 1)
+    p /= p.sum()
+    q /= q.sum()
+
+    x = np.arange(len(p))[:, None]
     y = np.arange(len(q))[:, None]
 
     def gaussian_kernel(a, b, bw):
-        dists = (a - b.T) ** 2
-        return np.exp(-dists / (2 * bw**2))
+        sq_dists = (a - b.T) ** 2
+        return np.exp(-sq_dists / (2 * bw**2))
 
     K_xx = gaussian_kernel(x, x, bandwidth)
     K_yy = gaussian_kernel(y, y, bandwidth)
     K_xy = gaussian_kernel(x, y, bandwidth)
 
-    mmd = (
-        np.dot(p, np.dot(K_xx, p))
-        + np.dot(q, np.dot(K_yy, q))
-        - 2 * np.dot(p, np.dot(K_xy, q))
+    # Compute quadratic forms via trace-style matrix operations
+    mmd2 = (
+        np.sum(p[:, None] * p[None, :] * K_xx)
+        + np.sum(q[:, None] * q[None, :] * K_yy)
+        - 2 * np.sum(p[:, None] * q[None, :] * K_xy)
     )
-    return np.sqrt(mmd)
+
+    return np.sqrt(np.maximum(mmd2, 0))  # Avoid sqrt of negative from float errors
 
 
 def get_qcbm_probs(qc, params, param_values, num_labels, shots):
