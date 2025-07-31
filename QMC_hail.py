@@ -489,7 +489,7 @@ if do_qcbm:
             init_params,
             args=(qc, params, hail_probs, n_shots, objective_func),
             method="COBYLA",
-            options={"maxiter": max_iterations, "disp": True},
+            options={"maxiter": max_iterations, "disp": True, "tol": 1e-6},
         )
 
     trained_params = result.x
