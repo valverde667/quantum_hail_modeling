@@ -518,7 +518,7 @@ if do_qcbm:
     mmd_final = mmd_loss(hail_probs, final_probs)
 
     with open(f"results/{objective_function}_seed{random_seed}.csv", "w") as f:
-        f.write("seed, loss_used, F, KL, JS, Hellinger, TV, MMD\n")
+        f.write("seed,loss_used,F,KL,JS,Hellinger,TV,MMD\n")
         f.write(
             f"{random_seed},{objective_function},{result.fun},{kl_final},{js_final},{hd_final},{tv_final},{mmd_final}\n"
         )
