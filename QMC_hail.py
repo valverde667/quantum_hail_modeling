@@ -57,7 +57,8 @@ qc_depth = 4  # Depth of the quantum circuit for QCBM
 n_shots = 2048  # Number of shots for QCBM simulation
 objective_function = args.loss  # Objective function for QCBM optimization
 max_iterations = 100  # Maximum iterations for optimization
-use_gradients = True
+do_qcbm = True  # Flag for executing QCBM routine
+use_gradients = False  # Flag for optimizing with gradients
 
 
 # ------------------------------------------------------------------------------
@@ -407,7 +408,6 @@ hail_probs = hail_freqs / hail_freqs.sum()
 #   Quantum Circuit Born Machine (QCBM)
 # The QCBM section is going to be used for QCBM techniques.
 # ------------------------------------------------------------------------------
-do_qcbm = True  # Flag to indicate whether to run QCBM
 if do_qcbm:
     # Create a mapping from hail size to integer label (bitstring encoding)
     hail_size_to_label = {size: i for i, size in enumerate(hail_sizes)}
@@ -508,6 +508,20 @@ if do_qcbm:
     plt.legend()
     plt.tight_layout()
     plt.savefig("qcbm_pmf_comparison.pdf", dpi=800, bbox_inches="tight")
+
+    # Compute various metrics on optimized pmf and log.
+    # Recompute key metrics between final PMF and empirical
+    kl_final = kl_divergence(hail_probs, final_probs)
+    js_final = js_divergence(hail_probs, final_probs)
+    hd_final = hellinger_distance(hail_probs, final_probs)
+    tv_final = total_variation_distance(hail_probs, final_probs)
+    mmd_final = mmd_loss(hail_probs, final_probs)
+
+    with open(f"results/{objective_function}_seed{random_seed}.csv", "w") as f:
+        f.write("seed, loss_used, F, KL, JS, Hellinger, TV, MMD\n")
+        f.write(
+            f"{random_seed},{objective_function},{result.fun},{kl_final},{js_final},{hd_final},{tv_final},{mmd_final}\n"
+        )
 
 # ------------------------------------------------------------------------------
 #   Quantum Amplitude Estimation (QAE)
