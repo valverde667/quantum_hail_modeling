@@ -430,7 +430,6 @@ if do_qcbm:
     plt.legend()
     plt.tight_layout()
     plt.savefig("qcbm_pmf_comparison.pdf", dpi=800, bbox_inches="tight")
-    plt.show()
 
 # ------------------------------------------------------------------------------
 #   Quantum Amplitude Estimation (QAE)
@@ -474,16 +473,21 @@ def qae_circuit():
 
     # Apply controlled rotations based on hail state
     for i in range(len(padded_probs)):
-        control_values = [int(b) for b in format(i, f"0{num_qubits}b")]
+        # Create control wires and values to define the Ry rotation gate with.
+        control_vals = [int(b) for b in format(i, f"0{num_qubits}b")]
+        control_wires = list(range(num_qubits))
 
-        qml.ControlledQubitUnitary(
-            qml.RY(padded_angles[i], wires=0).matrix(),
-            control_wires=list(range(num_qubits)),
-            wires=num_qubits,
-            control_values=control_values,
+        # Define the controlled Ry gate.
+        controlled_ry = qml.ctrl(
+            qml.RY(padded_angles[i], wires=num_qubits),
+            control=control_wires,
+            control_values=control_vals,
         )
 
-    return qml.probs(wires=num_qubits)  # ancilla qubit
+        # Call rotation
+        controlled_ry
+
+    return qml.probs(wires=num_qubits)
 
 
 # Run and extract amplitude (i.e., Pr[ancilla = 1])
@@ -496,3 +500,7 @@ expected_loss_classical = np.sum(
     hail_probs * np.array([damage_function(s) for s in hail_sizes])
 )
 print(f"Expected Loss (Classical):        {expected_loss_classical:.4f}")
+
+print(
+    f"Abs. Percent Difference: {abs(expected_loss_qae-expected_loss_classical)/expected_loss_classical*100:.2f}%"
+)
