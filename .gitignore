@@ -13,6 +13,9 @@
 # Ignore all csv files 
 *.csv
 
+# Accept the data directory with the hail data for remote repo.
+!data/*.csv
+
 # Ignore certain mac files
 *.numbers
 *.key
