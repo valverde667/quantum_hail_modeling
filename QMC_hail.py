@@ -149,8 +149,8 @@ def create_qcbm_circuit(num_qubits, depth):
     for q in range(num_qubits - 1):
         qc.cx(q, q + 1)
 
-    # Additional CNOT between first and last qubit
-    qc.cx(0, num_qubits - 1)
+    # Additional CNOT gate between first (target) and last (control) qubit
+    qc.cx(num_qubits - 1, 0)
 
     # Rotation Layer 2: Rz -> Rx -> Rz
     for q in range(num_qubits):
@@ -165,8 +165,8 @@ def create_qcbm_circuit(num_qubits, depth):
     for q in range(num_qubits - 1):
         qc.cx(q, q + 1)
 
-    # Additional CNOT between first and last qubit
-    qc.cx(0, num_qubits - 1)
+    # Additional CNOT gate between first (target) and last (control) qubit
+    qc.cx(num_qubits - 1, 0)
 
     # Rotation Layer 3: Rz -> Rx
     for q in range(num_qubits):
