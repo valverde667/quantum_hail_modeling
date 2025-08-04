@@ -6,6 +6,11 @@ from scipy.stats import gaussian_kde
 import random
 import os
 
+from library import set_plot_style
+
+# Set plot style
+set_plot_style()
+
 # ------------------------------------------------------------------------------
 #    Useful Variables and/or Switches
 # ------------------------------------------------------------------------------
