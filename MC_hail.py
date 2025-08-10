@@ -6,6 +6,7 @@ from scipy.stats import nbinom
 import os
 import datetime
 import glob
+from dataclasses import dataclass
 
 from library import set_plot_style
 
@@ -18,7 +19,8 @@ set_plot_style()
 # ------------------------------------------------------------------------------
 n_years = 100000  # Number of years to simulate
 n_weeks = 48  # Number of weeks in a year
-np.random.seed(42)
+SEED = 42
+rng = np.random.default_rng(SEED)
 start_year = 1980
 end_year = 2024
 time_span = end_year - start_year  # Time span in years
