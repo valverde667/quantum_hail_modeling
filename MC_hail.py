@@ -43,6 +43,55 @@ def damage_function(size):
         return 0.9
 
 
+@dataclass
+class GammaDamageConfig:
+    base_scale: float = 100.0
+    shape_intercept: float = 2.0
+    shape_slope: float = 0.3
+    scale_growth: float = 0.8  # exponent coefficient for scale
+    round_to: int | None = 2  # Set None for rounding.
+
+
+def build_damage_sampler(
+    model: str = "lookup",
+    *,
+    gamma_cfg: GammaDamageConfig = GammaDamageConfig(),
+    rng: np.random.Generator = rng,
+):
+    """
+    Return a function f(sizes: array_like) -> per-event damagese (array).
+    Model: "lookup" (step model) or "gamma" (heavy-tail severity).
+    """
+    if model == "lookup":
+
+        def sampler(sizes):
+            s = np.asarray(sizes, dtype=float)
+            return damage_lookup(s)
+
+        return sampler
+
+    if model == "gamma":
+
+        def sampler(sizes):
+            s = np.asarray(sizes, dtype=float)
+
+            # Handle NaNs gracefully as zero damage
+            mask = ~np.isnan(s)
+            out = np.zeros_like(s, dtype=float)
+            if mask.any():
+                k = gamma_cfg.shape_intercept + gamma_cfg.shape_slope * s[mask]
+                theta = gamma_cfg.base_scale * np.exp(gamma_cfg.scale_growth * s[mask])
+                draws = rng.gamma(shape=k, scale=theta, size=k.shape)
+                if gamma_cfg.round_to is not None:
+                    draws = np.round(draws, gamma_cfg.round_to)
+                out[mask] = np.clip(draws, 0, None)
+            return out
+
+        return sampler
+
+    raise ValueError("model must be 'lookup' or 'gamma'")
+
+
 def calc_neg_binomial_params(data):
     """Calculate negative binomial parameters using method of moments."""
     mu = data.mean()
