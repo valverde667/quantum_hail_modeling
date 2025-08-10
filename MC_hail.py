@@ -145,6 +145,8 @@ hail_size = df["MAGNITUDE"].unique()
 # Vectorize the damage function
 damage_lookup = np.vectorize(damage_function)
 
+# Choose severity model
+damage_sampler = build_damage_sampler(model="gamma")  # or 'gamma'
 # ------------------------------------------------------------------------------
 #    MC Simulation
 # Simulate hail events for a year using the PMFs to sample events and sizes.
@@ -156,7 +158,7 @@ damage_lookup = np.vectorize(damage_function)
 losses = []
 for i in range(n_years):
     # Sample number of hail events for the year
-    n_events = nbinom.rvs(r, p)
+    n_events = rng.negative_binomial(r, p)
 
     if n_events == 0:
         losses.append(0)
@@ -167,7 +169,7 @@ for i in range(n_years):
     sampled_sizes = np.random.choice(hail_size, n_events, p=hail_pmf)
 
     # Look up the damage for the sampled sizes
-    damage = damage_lookup(sampled_sizes)
+    damage = damage_sampler(sampled_sizes)
 
     # Calculate damage for the year
     losses.append(damage.sum())
