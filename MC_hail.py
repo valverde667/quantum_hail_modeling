@@ -6,6 +6,7 @@ from scipy.stats import nbinom
 import os
 import datetime
 import glob
+from dataclasses import dataclass
 
 from library import set_plot_style
 
@@ -18,7 +19,8 @@ set_plot_style()
 # ------------------------------------------------------------------------------
 n_years = 100000  # Number of years to simulate
 n_weeks = 48  # Number of weeks in a year
-np.random.seed(42)
+SEED = 42
+rng = np.random.default_rng(SEED)
 start_year = 1980
 end_year = 2024
 time_span = end_year - start_year  # Time span in years
@@ -39,6 +41,55 @@ def damage_function(size):
         return 0.4
     else:
         return 0.9
+
+
+@dataclass
+class GammaDamageConfig:
+    base_scale: float = 100.0
+    shape_intercept: float = 2.0
+    shape_slope: float = 0.3
+    scale_growth: float = 0.8  # exponent coefficient for scale
+    round_to: int | None = 2  # Set None for rounding.
+
+
+def build_damage_sampler(
+    model: str = "lookup",
+    *,
+    gamma_cfg: GammaDamageConfig = GammaDamageConfig(),
+    rng: np.random.Generator = rng,
+):
+    """
+    Return a function f(sizes: array_like) -> per-event damagese (array).
+    Model: "lookup" (step model) or "gamma" (heavy-tail severity).
+    """
+    if model == "lookup":
+
+        def sampler(sizes):
+            s = np.asarray(sizes, dtype=float)
+            return damage_lookup(s)
+
+        return sampler
+
+    if model == "gamma":
+
+        def sampler(sizes):
+            s = np.asarray(sizes, dtype=float)
+
+            # Handle NaNs gracefully as zero damage
+            mask = ~np.isnan(s)
+            out = np.zeros_like(s, dtype=float)
+            if mask.any():
+                k = gamma_cfg.shape_intercept + gamma_cfg.shape_slope * s[mask]
+                theta = gamma_cfg.base_scale * np.exp(gamma_cfg.scale_growth * s[mask])
+                draws = rng.gamma(shape=k, scale=theta, size=k.shape)
+                if gamma_cfg.round_to is not None:
+                    draws = np.round(draws, gamma_cfg.round_to)
+                out[mask] = np.clip(draws, 0, None)
+            return out
+
+        return sampler
+
+    raise ValueError("model must be 'lookup' or 'gamma'")
 
 
 def calc_neg_binomial_params(data):
@@ -94,6 +145,8 @@ hail_size = df["MAGNITUDE"].unique()
 # Vectorize the damage function
 damage_lookup = np.vectorize(damage_function)
 
+# Choose severity model
+damage_sampler = build_damage_sampler(model="gamma")  # or 'gamma'
 # ------------------------------------------------------------------------------
 #    MC Simulation
 # Simulate hail events for a year using the PMFs to sample events and sizes.
@@ -105,7 +158,7 @@ damage_lookup = np.vectorize(damage_function)
 losses = []
 for i in range(n_years):
     # Sample number of hail events for the year
-    n_events = nbinom.rvs(r, p)
+    n_events = rng.negative_binomial(r, p)
 
     if n_events == 0:
         losses.append(0)
@@ -116,7 +169,7 @@ for i in range(n_years):
     sampled_sizes = np.random.choice(hail_size, n_events, p=hail_pmf)
 
     # Look up the damage for the sampled sizes
-    damage = damage_lookup(sampled_sizes)
+    damage = damage_sampler(sampled_sizes)
 
     # Calculate damage for the year
     losses.append(damage.sum())
