@@ -138,9 +138,9 @@ avg_weekly_counts = weekly_counts / time_span
 event_pmf = weekly_counts / weekly_counts.sum()
 
 # Create size pmf
-size_counts = df.groupby("MAGNITUDE").size()
+size_counts = df.groupby("MAGNITUDE").size().sort_index()
 hail_pmf = size_counts / size_counts.sum()
-hail_size = df["MAGNITUDE"].unique()
+hail_size = size_counts.index.to_numpy()
 
 # Vectorize the damage function
 damage_lookup = np.vectorize(damage_function)
