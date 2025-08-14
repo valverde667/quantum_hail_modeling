@@ -32,7 +32,7 @@ time_span = end_year - start_year  # Time span in years
 
 # === Severity model selection & Gamma calibration ===
 # Toggle calibration on/off:
-USE_GAMMA = False  # if False, use the step lookup severity
+USE_GAMMA = True  # if False, use the step lookup severity
 CALIBRATE_GAMMA = (
     True  # if True and USE_GAMMA, fit k and θ_i to match lookup means & variance
 )
@@ -180,7 +180,7 @@ hail_pmf = size_counts / size_counts.sum()
 hail_size = size_counts.index.to_numpy()
 
 # Vectorize the damage function
-damage_lookup = np.vectorize(damage_function)
+damage_lookup = np.vectorize(damage_function, otypes=[float])
 
 if not USE_GAMMA:
 
@@ -196,7 +196,7 @@ else:
         # Per-event mean from lookup
         mu_i = damage_lookup(hail_size).astype(float)
         mu_i = np.where(hail_size < SIZE_THRESHOLD, 0.0, mu_i)
-        mu_bar = np.sum(hail_pmf * mu_i)
+        mu_bar = mu_L / EN
 
         # Back out per-event variance target via compound identity
         varX_target = (var_L - VarN * (mu_bar**2)) / EN
@@ -238,7 +238,6 @@ else:
             return out
 
 
-stop
 # ------------------------------------------------------------------------------
 #    MC Simulation
 # Simulate hail events for a year using the PMFs to sample events and sizes.
@@ -260,12 +259,11 @@ for i in range(n_years):
     sampled_weeks = np.random.choice(all_weeks, n_events, p=event_pmf)
     sampled_sizes = np.random.choice(hail_size, n_events, p=hail_pmf)
 
-    # # Look up the damage for the sampled sizes
-    # # to be filled with calibrated gamma
-    # damage = damage_sampler(sampled_sizes)
+    # Look up the damage for the sampled sizes
+    damage = damage_sampler(sampled_sizes)
 
-    # # Calculate damage for the year
-    # losses.append(damage.sum())
+    # Calculate damage for the year
+    losses.append(damage.sum())
 
 losses = np.array(losses)
 
