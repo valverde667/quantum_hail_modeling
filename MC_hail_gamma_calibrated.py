@@ -74,6 +74,75 @@ def calc_neg_binomial_params(data):
     return r, p
 
 
+def calibrate_gamma_constant_shape(
+    sizes, probs, lookup_fn, var_target, size_threshold=None, eps=1e-9
+):
+    """
+    Calibrate a constant-shape Gamma mixture so that:
+      - For each size s_i: E[X|S=s_i] matches the lookup mean mu_i.
+      - Unconditional per-event variance equals var_target.
+    Returns: (k, theta_map) with k>0 and theta_map[size]=theta_i.
+    """
+    sizes = np.asarray(sizes, dtype=float)
+    probs = np.asarray(probs, dtype=float)
+    if not np.isclose(probs.sum(), 1.0):
+        raise ValueError("hail-size PMF must sum to 1.")
+    # Conditional means from lookup (zero below threshold if requested)
+    mu_i = lookup_fn(sizes).astype(float)
+    if size_threshold is not None:
+        mu_i = np.where(sizes < size_threshold, 0.0, mu_i)
+    # Mixture moments of mu(S)
+    mu_bar = np.sum(probs * mu_i)
+    Emu2 = np.sum(probs * (mu_i**2))
+    var_mu = Emu2 - mu_bar**2
+    # Feasibility
+    if not (var_target > var_mu + eps):
+        raise ValueError(
+            f"Target per-event variance too small: var_target={var_target:.6g} "
+            f"<= Var(mu(S))={var_mu:.6g}. Increase var_target or revise mu_i."
+        )
+    # Solve for constant shape k from law of total variance
+    k = Emu2 / (var_target - var_mu)
+    # Per-size scales ensuring E[X|s_i]=mu_i
+    theta_i = np.where(mu_i > 0, mu_i / k, 0.0)
+    theta_map = dict(zip(sizes.tolist(), theta_i.tolist()))
+    return float(k), theta_map
+
+
+def make_gamma_sampler_calibrated(k, theta_map, rng):
+    """
+    Vectorized sampler for constant-shape (k) Gamma with per-size scales theta_i.
+    Sizes not exactly in theta_map use nearest neighbor mapping.
+    """
+    size_keys = np.array(list(theta_map.keys()), dtype=float)
+    theta_vals = np.array([theta_map[s] for s in size_keys], dtype=float)
+
+    # Small helper to fetch theta for arbitrary sizes
+    def theta_for(arr):
+        arr = np.asarray(arr, dtype=float)
+        out = np.empty_like(arr, dtype=float)
+        # exact matches
+        lookup = {sk: tv for sk, tv in zip(size_keys.tolist(), theta_vals.tolist())}
+        mask = np.isin(arr, size_keys)
+        if mask.any():
+            out[mask] = np.array([lookup[v] for v in arr[mask]], dtype=float)
+        if (~mask).any():
+            idx = np.abs(arr[~mask, None] - size_keys[None, :]).argmin(axis=1)
+            out[~mask] = theta_vals[idx]
+        return out
+
+    def sampler(sizes):
+        s = np.asarray(sizes, dtype=float)
+        theta = theta_for(s)
+        out = np.zeros_like(s, dtype=float)
+        mask = theta > 0
+        if mask.any():
+            out[mask] = rng.gamma(shape=k, scale=theta[mask], size=mask.sum())
+        return out
+
+    return sampler
+
+
 # ------------------------------------------------------------------------------
 #    Ingest and Process Data
 # Ingest data from concatenated csv file (see hail_data_processing.py) and
