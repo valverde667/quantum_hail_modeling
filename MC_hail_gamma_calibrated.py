@@ -32,7 +32,7 @@ time_span = end_year - start_year  # Time span in years
 
 # === Severity model selection & Gamma calibration ===
 # Toggle calibration on/off:
-USE_GAMMA = True  # if False, use the step lookup severity
+USE_GAMMA = False  # if False, use the step lookup severity
 CALIBRATE_GAMMA = (
     True  # if True and USE_GAMMA, fit k and θ_i to match lookup means & variance
 )
@@ -182,6 +182,63 @@ hail_size = size_counts.index.to_numpy()
 # Vectorize the damage function
 damage_lookup = np.vectorize(damage_function)
 
+if not USE_GAMMA:
+
+    def damage_sampler(arr):
+        return damage_lookup(np.asarray(arr, dtype=float))
+
+else:
+    if CALIBRATE_GAMMA:
+        # Count model moments from NegBin (already computed as r, p)
+        EN = r * (1 - p) / p
+        VarN = r * (1 - p) / (p**2)
+
+        # Per-event mean from lookup
+        mu_i = damage_lookup(hail_size).astype(float)
+        mu_i = np.where(hail_size < SIZE_THRESHOLD, 0.0, mu_i)
+        mu_bar = np.sum(hail_pmf * mu_i)
+
+        # Back out per-event variance target via compound identity
+        varX_target = (var_L - VarN * (mu_bar**2)) / EN
+
+        # Diagnostics
+        Emu2 = np.sum(hail_pmf * (mu_i**2))
+        var_mu = Emu2 - mu_bar**2
+        print(f"[Gamma calibration] EN={EN:.6g}, VarN={VarN:.6g}")
+        print(f"[Gamma calibration] mu_bar (per-event mean from lookup) = {mu_bar:.6g}")
+        print(f"[Gamma calibration] Var(mu(S)) = {var_mu:.6g}")
+        print(
+            f"[Gamma calibration] Var(L)_target = {var_L:.6g}  ->  Var(X)_target = {varX_target:.6g}"
+        )
+
+        # Calibrate k and θ_i
+        k, theta_map = calibrate_gamma_constant_shape(
+            sizes=hail_size,
+            probs=hail_pmf,
+            lookup_fn=damage_lookup,
+            var_target=varX_target,
+            size_threshold=SIZE_THRESHOLD,
+        )
+        print(f"[Gamma calibration] Solved constant shape k = {k:.6g}")
+
+        damage_sampler = make_gamma_sampler_calibrated(k, theta_map, rng)
+
+    else:
+        # Uncalibrated Gamma: constant k and exponential θ(s) as a fallback
+        k = 3.0
+        c = 100.0
+        gamma_scale = 0.8
+
+        def damage_sampler(arr):
+            s = np.asarray(arr, dtype=float)
+            theta = c * np.exp(gamma_scale * s)
+            out = np.zeros_like(s, dtype=float)
+            mask = s >= SIZE_THRESHOLD
+            out[mask] = rng.gamma(shape=k, scale=theta[mask], size=mask.sum())
+            return out
+
+
+stop
 # ------------------------------------------------------------------------------
 #    MC Simulation
 # Simulate hail events for a year using the PMFs to sample events and sizes.
