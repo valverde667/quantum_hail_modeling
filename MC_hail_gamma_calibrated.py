@@ -1,3 +1,9 @@
+# This script is dedicated to performing the MC simulations with a calibrated
+# gamma curve. Becuase of the complexity, it was thought best to keep this
+# implementation separate from the MC_hail.py script for clarity. The MC_hail
+# script will need to be run in order to get the annual variance in loss from the
+# lookup table, as well as the assigned parameter values for the negative binomial.
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -6,7 +12,6 @@ from scipy.stats import nbinom
 import os
 import datetime
 import glob
-from dataclasses import dataclass
 
 from library import set_plot_style
 
@@ -24,6 +29,18 @@ rng = np.random.default_rng(SEED)
 start_year = 1980
 end_year = 2024
 time_span = end_year - start_year  # Time span in years
+
+# === Severity model selection & Gamma calibration ===
+# Toggle calibration on/off:
+USE_GAMMA = True  # if False, use the step lookup severity
+CALIBRATE_GAMMA = (
+    True  # if True and USE_GAMMA, fit k and θ_i to match lookup means & variance
+)
+SIZE_THRESHOLD = 2.0  # zero loss for sizes < threshold (mirrors lookup)
+
+# Values from MC_hail script
+var_L = 17.29
+mu_L = 2.76
 
 
 # ------------------------------------------------------------------------------
@@ -43,55 +60,6 @@ def damage_function(size):
         return 0.9
 
 
-@dataclass
-class GammaDamageConfig:
-    base_scale: float = 100.0
-    shape_intercept: float = 2.0
-    shape_slope: float = 0.3
-    scale_growth: float = 0.8  # exponent coefficient for scale
-    round_to: int | None = 2  # Set None for rounding.
-
-
-def build_damage_sampler(
-    model: str = "lookup",
-    *,
-    gamma_cfg: GammaDamageConfig = GammaDamageConfig(),
-    rng: np.random.Generator = rng,
-):
-    """
-    Return a function f(sizes: array_like) -> per-event damagese (array).
-    Model: "lookup" (step model) or "gamma" (heavy-tail severity).
-    """
-    if model == "lookup":
-
-        def sampler(sizes):
-            s = np.asarray(sizes, dtype=float)
-            return damage_lookup(s)
-
-        return sampler
-
-    if model == "gamma":
-
-        def sampler(sizes):
-            s = np.asarray(sizes, dtype=float)
-
-            # Handle NaNs gracefully as zero damage
-            mask = ~np.isnan(s)
-            out = np.zeros_like(s, dtype=float)
-            if mask.any():
-                k = gamma_cfg.shape_intercept + gamma_cfg.shape_slope * s[mask]
-                theta = gamma_cfg.base_scale * np.exp(gamma_cfg.scale_growth * s[mask])
-                draws = rng.gamma(shape=k, scale=theta, size=k.shape)
-                if gamma_cfg.round_to is not None:
-                    draws = np.round(draws, gamma_cfg.round_to)
-                out[mask] = np.clip(draws, 0, None)
-            return out
-
-        return sampler
-
-    raise ValueError("model must be 'lookup' or 'gamma'")
-
-
 def calc_neg_binomial_params(data):
     """Calculate negative binomial parameters using method of moments."""
     mu = data.mean()
@@ -104,6 +72,75 @@ def calc_neg_binomial_params(data):
     r = mu**2 / (var - mu)
     p = r / (r + mu)
     return r, p
+
+
+def calibrate_gamma_constant_shape(
+    sizes, probs, lookup_fn, var_target, size_threshold=None, eps=1e-9
+):
+    """
+    Calibrate a constant-shape Gamma mixture so that:
+      - For each size s_i: E[X|S=s_i] matches the lookup mean mu_i.
+      - Unconditional per-event variance equals var_target.
+    Returns: (k, theta_map) with k>0 and theta_map[size]=theta_i.
+    """
+    sizes = np.asarray(sizes, dtype=float)
+    probs = np.asarray(probs, dtype=float)
+    if not np.isclose(probs.sum(), 1.0):
+        raise ValueError("hail-size PMF must sum to 1.")
+    # Conditional means from lookup (zero below threshold if requested)
+    mu_i = lookup_fn(sizes).astype(float)
+    if size_threshold is not None:
+        mu_i = np.where(sizes < size_threshold, 0.0, mu_i)
+    # Mixture moments of mu(S)
+    mu_bar = np.sum(probs * mu_i)
+    Emu2 = np.sum(probs * (mu_i**2))
+    var_mu = Emu2 - mu_bar**2
+    # Feasibility
+    if not (var_target > var_mu + eps):
+        raise ValueError(
+            f"Target per-event variance too small: var_target={var_target:.6g} "
+            f"<= Var(mu(S))={var_mu:.6g}. Increase var_target or revise mu_i."
+        )
+    # Solve for constant shape k from law of total variance
+    k = Emu2 / (var_target - var_mu)
+    # Per-size scales ensuring E[X|s_i]=mu_i
+    theta_i = np.where(mu_i > 0, mu_i / k, 0.0)
+    theta_map = dict(zip(sizes.tolist(), theta_i.tolist()))
+    return float(k), theta_map
+
+
+def make_gamma_sampler_calibrated(k, theta_map, rng):
+    """
+    Vectorized sampler for constant-shape (k) Gamma with per-size scales theta_i.
+    Sizes not exactly in theta_map use nearest neighbor mapping.
+    """
+    size_keys = np.array(list(theta_map.keys()), dtype=float)
+    theta_vals = np.array([theta_map[s] for s in size_keys], dtype=float)
+
+    # Small helper to fetch theta for arbitrary sizes
+    def theta_for(arr):
+        arr = np.asarray(arr, dtype=float)
+        out = np.empty_like(arr, dtype=float)
+        # exact matches
+        lookup = {sk: tv for sk, tv in zip(size_keys.tolist(), theta_vals.tolist())}
+        mask = np.isin(arr, size_keys)
+        if mask.any():
+            out[mask] = np.array([lookup[v] for v in arr[mask]], dtype=float)
+        if (~mask).any():
+            idx = np.abs(arr[~mask, None] - size_keys[None, :]).argmin(axis=1)
+            out[~mask] = theta_vals[idx]
+        return out
+
+    def sampler(sizes):
+        s = np.asarray(sizes, dtype=float)
+        theta = theta_for(s)
+        out = np.zeros_like(s, dtype=float)
+        mask = theta > 0
+        if mask.any():
+            out[mask] = rng.gamma(shape=k, scale=theta[mask], size=mask.sum())
+        return out
+
+    return sampler
 
 
 # ------------------------------------------------------------------------------
@@ -143,10 +180,64 @@ hail_pmf = size_counts / size_counts.sum()
 hail_size = size_counts.index.to_numpy()
 
 # Vectorize the damage function
-damage_lookup = np.vectorize(damage_function)
+damage_lookup = np.vectorize(damage_function, otypes=[float])
 
-# Choose severity model
-damage_sampler = build_damage_sampler(model="gamma")  # or 'gamma'
+if not USE_GAMMA:
+
+    def damage_sampler(arr):
+        return damage_lookup(np.asarray(arr, dtype=float))
+
+else:
+    if CALIBRATE_GAMMA:
+        # Count model moments from NegBin (already computed as r, p)
+        EN = r * (1 - p) / p
+        VarN = r * (1 - p) / (p**2)
+
+        # Per-event mean from lookup
+        mu_i = damage_lookup(hail_size).astype(float)
+        mu_i = np.where(hail_size < SIZE_THRESHOLD, 0.0, mu_i)
+        mu_bar = mu_L / EN
+
+        # Back out per-event variance target via compound identity
+        varX_target = (var_L - VarN * (mu_bar**2)) / EN
+
+        # Diagnostics
+        Emu2 = np.sum(hail_pmf * (mu_i**2))
+        var_mu = Emu2 - mu_bar**2
+        print(f"[Gamma calibration] EN={EN:.6g}, VarN={VarN:.6g}")
+        print(f"[Gamma calibration] mu_bar (per-event mean from lookup) = {mu_bar:.6g}")
+        print(f"[Gamma calibration] Var(mu(S)) = {var_mu:.6g}")
+        print(
+            f"[Gamma calibration] Var(L)_target = {var_L:.6g}  ->  Var(X)_target = {varX_target:.6g}"
+        )
+
+        # Calibrate k and θ_i
+        k, theta_map = calibrate_gamma_constant_shape(
+            sizes=hail_size,
+            probs=hail_pmf,
+            lookup_fn=damage_lookup,
+            var_target=varX_target,
+            size_threshold=SIZE_THRESHOLD,
+        )
+        print(f"[Gamma calibration] Solved constant shape k = {k:.6g}")
+
+        damage_sampler = make_gamma_sampler_calibrated(k, theta_map, rng)
+
+    else:
+        # Uncalibrated Gamma: constant k and exponential θ(s) as a fallback
+        k = 3.0
+        c = 100.0
+        gamma_scale = 0.8
+
+        def damage_sampler(arr):
+            s = np.asarray(arr, dtype=float)
+            theta = c * np.exp(gamma_scale * s)
+            out = np.zeros_like(s, dtype=float)
+            mask = s >= SIZE_THRESHOLD
+            out[mask] = rng.gamma(shape=k, scale=theta[mask], size=mask.sum())
+            return out
+
+
 # ------------------------------------------------------------------------------
 #    MC Simulation
 # Simulate hail events for a year using the PMFs to sample events and sizes.
