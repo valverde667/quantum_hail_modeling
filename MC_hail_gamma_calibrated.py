@@ -30,6 +30,18 @@ start_year = 1980
 end_year = 2024
 time_span = end_year - start_year  # Time span in years
 
+# === Severity model selection & Gamma calibration ===
+# Toggle calibration on/off:
+USE_GAMMA = True  # if False, use the step lookup severity
+CALIBRATE_GAMMA = (
+    True  # if True and USE_GAMMA, fit k and θ_i to match lookup means & variance
+)
+SIZE_THRESHOLD = 2.0  # zero loss for sizes < threshold (mirrors lookup)
+
+# Values from MC_hail script
+var_L = 17.29
+mu_L = 2.76
+
 
 # ------------------------------------------------------------------------------
 #    Functions
