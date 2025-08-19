@@ -181,10 +181,12 @@ losses = np.array(losses)
 # Calculate various metrics for the simulated data.
 # ------------------------------------------------------------------------------
 loss = losses.mean()
+std = losses.std()
 var_95 = np.percentile(losses, 95)
 tvar_95 = losses[losses > var_95].mean()
 
 print(f"Mean Loss: {loss:.2f}")
+print(f"Std: {std:.2f}")
 print(f"95th Percentile Loss: {var_95:.2f}")
 print(f"Tail 95th Percentile Loss: {tvar_95:.2f}")
 print(f"Max Loss: {losses.max():.2f}")
@@ -198,7 +200,7 @@ plt.plot(sorted_losses, cdf)
 plt.xlabel("Loss")
 plt.ylabel("Cumulative Probability")
 plt.tight_layout()
-plt.savefig("losses_cdf.pdf", dpi=800, bbox_inches="tight")
+plt.savefig("losses_cdf.svg", dpi=800, bbox_inches="tight")
 plt.show()
 
 # Plot histogram of losses
@@ -208,7 +210,7 @@ plt.bar(bin_centers, counts, width=bin_edges[1] - bin_edges[0], edgecolor="black
 plt.xlabel("Loss (arb.)")
 plt.ylabel("Probability Density")
 plt.tight_layout()
-plt.savefig("losses_histogram.pdf", dpi=800, bbox_inches="tight")
+plt.savefig("losses_histogram.svg", dpi=800, bbox_inches="tight")
 plt.show()
 
 # Slice off the first bin
@@ -219,5 +221,5 @@ bin_width = bin_edges[1] - bin_edges[0]
 # Plot
 plt.bar(bin_centers, counts, width=bin_width, edgecolor="black", lw=1)
 plt.tight_layout()
-plt.savefig("losses_histogram_no_zero.pdf", dpi=800, bbox_inches="tight")
+plt.savefig("losses_histogram_no_zero.svg", dpi=800, bbox_inches="tight")
 plt.show()
